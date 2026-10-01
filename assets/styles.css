@@ -848,3 +848,52 @@ textarea:focus {
     box-shadow: none;
   }
 }
+
+/* Country-specific additions */
+
+.receipt-doc-title {
+  margin-top: 6px !important;
+  color: #172331 !important;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.receipt-section-title {
+  margin: 0 0 4px;
+  font-size: 0.74rem;
+  font-weight: 800;
+}
+
+.receipt-marker {
+  margin-left: 6px;
+  color: #6b7886;
+  font-size: 0.7rem;
+  font-style: normal;
+}
+
+.invoice-tax-table {
+  width: 100%;
+  margin-top: 18px;
+  border-collapse: collapse;
+  font-size: 0.78rem;
+}
+
+.invoice-tax-table th,
+.invoice-tax-table td {
+  padding: 5px 0;
+  border-bottom: 1px solid #e0e6ec;
+  text-align: right;
+}
+
+.invoice-tax-table th:first-child,
+.invoice-tax-table td:first-child {
+  text-align: left;
+}
+
+.invoice-tax-table th {
+  color: #6b7886;
+  font-size: 0.7rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}

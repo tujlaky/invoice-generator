@@ -1,332 +1,83 @@
 import { useMemo, useState } from "preact/hooks";
 import {
-  CURRENCY_OPTIONS,
-  type CurrencyCode,
-  formatDate,
-  formatMoney,
-  formatMoneyPdf,
-  formatQuantity,
+  COUNTRIES,
+  type CountryCode,
+  type CountryProfile,
+  type Party,
+  taxOption,
+} from "@/lib/countries.ts";
+import {
+  createFormatters,
+  type Formatters,
   toInputDate,
   toNumber,
   truncate,
-  VAT_OPTIONS,
-  vatLabel,
-  type VatRate,
   wrapText,
 } from "@/lib/format.ts";
 import { createPdf, fitImage, parseJpegDataUrl, pdfText } from "@/lib/pdf.ts";
+import { CountrySelect } from "@/components/CountrySelect.tsx";
+import { LogoEditor } from "@/components/LogoEditor.tsx";
+import { PageNav } from "@/components/PageNav.tsx";
 
 type LineItem = {
   id: number;
   description: string;
   quantity: number;
   unitPrice: number;
-  vatRate: VatRate;
-};
-
-type Party = {
-  name: string;
-  address: string;
-  postalCity: string;
-  country: string;
-  email: string;
-  taxId: string;
+  taxCode: string;
 };
 
 type InvoiceState = {
-  currency: CurrencyCode;
+  country: CountryCode;
   invoiceNumber: string;
   invoiceDate: string;
+  performanceDate: string;
   dueDate: string;
   paymentTerm: string;
   reference: string;
   logoDataUrl: string;
-  seller: Party & {
-    kvk: string;
-    iban: string;
-  };
+  seller: Party;
   customer: Party;
   notes: string;
   items: LineItem[];
 };
 
-const DEMO_ITEMS: Array<Omit<LineItem, "id">> = [
-  {
-    description: "Ontwerp en ontwikkeling",
-    quantity: 1,
-    unitPrice: 1250,
-    vatRate: "21",
-  },
-  { description: "Drukwerk", quantity: 2, unitPrice: 85, vatRate: "9" },
-  {
-    description: "Webhosting (per maand)",
-    quantity: 12,
-    unitPrice: 14.95,
-    vatRate: "21",
-  },
-  {
-    description: "Domeinregistratie .nl",
-    quantity: 1,
-    unitPrice: 12.5,
-    vatRate: "21",
-  },
-  { description: "Logo-ontwerp", quantity: 1, unitPrice: 650, vatRate: "21" },
-  {
-    description: "Huisstijlhandboek",
-    quantity: 1,
-    unitPrice: 480,
-    vatRate: "21",
-  },
-  {
-    description: "Visitekaartjes (250 stuks)",
-    quantity: 1,
-    unitPrice: 45,
-    vatRate: "9",
-  },
-  {
-    description: "Flyers A5 (500 stuks)",
-    quantity: 1,
-    unitPrice: 78,
-    vatRate: "9",
-  },
-  {
-    description: "Consultancy (per uur)",
-    quantity: 8,
-    unitPrice: 95,
-    vatRate: "21",
-  },
-  {
-    description: "Projectmanagement (per uur)",
-    quantity: 6,
-    unitPrice: 85,
-    vatRate: "21",
-  },
-  {
-    description: "SEO-optimalisatie",
-    quantity: 1,
-    unitPrice: 375,
-    vatRate: "21",
-  },
-  {
-    description: "Contentschrijven (per pagina)",
-    quantity: 5,
-    unitPrice: 60,
-    vatRate: "21",
-  },
-  {
-    description: "Fotografie op locatie",
-    quantity: 1,
-    unitPrice: 425,
-    vatRate: "21",
-  },
-  {
-    description: "Beeldbewerking (per foto)",
-    quantity: 20,
-    unitPrice: 7.5,
-    vatRate: "21",
-  },
-  {
-    description: "Nieuwsbriefsjabloon",
-    quantity: 1,
-    unitPrice: 290,
-    vatRate: "21",
-  },
-  {
-    description: "Socialmedia-beheer (per maand)",
-    quantity: 3,
-    unitPrice: 350,
-    vatRate: "21",
-  },
-  {
-    description: "Onderhoudscontract website",
-    quantity: 1,
-    unitPrice: 199,
-    vatRate: "21",
-  },
-  {
-    description: "SSL-certificaat (per jaar)",
-    quantity: 1,
-    unitPrice: 49,
-    vatRate: "21",
-  },
-  {
-    description: "Vertaling NL-EN (per woord)",
-    quantity: 1500,
-    unitPrice: 0.12,
-    vatRate: "21",
-  },
-  {
-    description: "Redactie en correctie",
-    quantity: 3,
-    unitPrice: 55,
-    vatRate: "21",
-  },
-  {
-    description: "Boek (paperback)",
-    quantity: 10,
-    unitPrice: 19.95,
-    vatRate: "9",
-  },
-  { description: "E-book", quantity: 25, unitPrice: 9.99, vatRate: "9" },
-  {
-    description: "Tijdschriftabonnement",
-    quantity: 1,
-    unitPrice: 59,
-    vatRate: "9",
-  },
-  {
-    description: "Koffiebonen 1 kg",
-    quantity: 4,
-    unitPrice: 22.5,
-    vatRate: "9",
-  },
-  {
-    description: "Catering lunch (per persoon)",
-    quantity: 12,
-    unitPrice: 14.5,
-    vatRate: "9",
-  },
-  {
-    description: "Bloemen ontvangstbalie",
-    quantity: 2,
-    unitPrice: 35,
-    vatRate: "9",
-  },
-  {
-    description: "Workshop UX-design",
-    quantity: 1,
-    unitPrice: 890,
-    vatRate: "21",
-  },
-  {
-    description: "Training presenteren (dag)",
-    quantity: 1,
-    unitPrice: 1150,
-    vatRate: "21",
-  },
-  {
-    description: "Cursus Nederlands (10 lessen)",
-    quantity: 1,
-    unitPrice: 420,
-    vatRate: "exempt",
-  },
-  {
-    description: "Bijles wiskunde (per uur)",
-    quantity: 6,
-    unitPrice: 45,
-    vatRate: "exempt",
-  },
-  {
-    description: "Fysiotherapie (per behandeling)",
-    quantity: 4,
-    unitPrice: 38,
-    vatRate: "exempt",
-  },
-  {
-    description: "Verzekeringsadvies",
-    quantity: 1,
-    unitPrice: 150,
-    vatRate: "exempt",
-  },
-  {
-    description: "Export levering naar Duitsland",
-    quantity: 1,
-    unitPrice: 2400,
-    vatRate: "0",
-  },
-  {
-    description: "Intracommunautaire dienst",
-    quantity: 1,
-    unitPrice: 1800,
-    vatRate: "0",
-  },
-  {
-    description: "Reiskosten (per km)",
-    quantity: 120,
-    unitPrice: 0.23,
-    vatRate: "21",
-  },
-  { description: "Parkeerkosten", quantity: 3, unitPrice: 12, vatRate: "21" },
-  {
-    description: "Laptopstandaard",
-    quantity: 2,
-    unitPrice: 39.95,
-    vatRate: "21",
-  },
-  {
-    description: "Bureaustoel ergonomisch",
-    quantity: 1,
-    unitPrice: 349,
-    vatRate: "21",
-  },
-  {
-    description: "Softwarelicentie (per jaar)",
-    quantity: 5,
-    unitPrice: 120,
-    vatRate: "21",
-  },
-  {
-    description: "Backupopslag 1 TB (per maand)",
-    quantity: 12,
-    unitPrice: 8.95,
-    vatRate: "21",
-  },
-];
+// Builds a fresh invoice from the country's demo data. Switching country
+// replaces the document, because parties, items and tax codes are specific
+// to each country.
+function createInvoice(country: CountryCode, logoDataUrl = ""): InvoiceState {
+  const demo = COUNTRIES[country].invoice.demo;
+  const today = new Date();
+  const due = new Date(today);
+  due.setDate(due.getDate() + demo.dueDays);
 
-const today = new Date();
-const defaultDueDate = new Date(today);
-defaultDueDate.setDate(defaultDueDate.getDate() + 14);
-
-const initialInvoice: InvoiceState = {
-  currency: "EUR",
-  invoiceNumber: "2026-001",
-  invoiceDate: toInputDate(today),
-  dueDate: toInputDate(defaultDueDate),
-  paymentTerm: "14 dagen",
-  reference: "Websiteproject",
-  logoDataUrl: "",
-  seller: {
-    name: "Studio Voorbeeld B.V.",
-    address: "Keizersgracht 100",
-    postalCity: "1015 CV Amsterdam",
-    country: "Nederland",
-    email: "facturen@voorbeeld.nl",
-    taxId: "NL123456789B01",
-    kvk: "12345678",
-    iban: "NL91 ABNA 0417 1643 00",
-  },
-  customer: {
-    name: "Klant Bedrijf B.V.",
-    address: "Coolsingel 42",
-    postalCity: "3011 AD Rotterdam",
-    country: "Nederland",
-    email: "administratie@klant.nl",
-    taxId: "NL987654321B01",
-  },
-  notes:
-    "Gelieve het totaalbedrag te voldoen onder vermelding van het factuurnummer.",
-  items: [
-    {
-      id: 1,
-      description: "Ontwerp en ontwikkeling",
-      quantity: 1,
-      unitPrice: 1250,
-      vatRate: "21",
-    },
-    {
-      id: 2,
-      description: "Drukwerk",
-      quantity: 2,
-      unitPrice: 85,
-      vatRate: "9",
-    },
-  ],
-};
+  return {
+    country,
+    invoiceNumber: demo.number,
+    invoiceDate: toInputDate(today),
+    performanceDate: toInputDate(today),
+    dueDate: toInputDate(due),
+    paymentTerm: demo.paymentTerm,
+    reference: demo.reference,
+    logoDataUrl,
+    seller: { ...demo.seller },
+    customer: { ...demo.customer },
+    notes: demo.notes,
+    items: demo.items.map((item, index) => ({ ...item, id: index + 1 })),
+  };
+}
 
 export default function InvoiceGenerator() {
-  const [invoice, setInvoice] = useState<InvoiceState>(initialInvoice);
+  const [invoice, setInvoice] = useState<InvoiceState>(() =>
+    createInvoice("NL")
+  );
   const [previewOpen, setPreviewOpen] = useState(false);
-  const totals = useMemo(() => calculateTotals(invoice.items), [invoice.items]);
+  const profile = COUNTRIES[invoice.country];
+  const fmt = useMemo(() => createFormatters(profile.format), [profile]);
+  const totals = useMemo(
+    () => calculateTotals(invoice.items, profile),
+    [invoice.items, profile],
+  );
 
   const updateInvoice = <K extends keyof InvoiceState>(
     key: K,
@@ -337,7 +88,7 @@ export default function InvoiceGenerator() {
 
   const updateParty = (
     party: "seller" | "customer",
-    key: string,
+    key: keyof Party,
     value: string,
   ) => {
     setInvoice((current) => ({
@@ -360,7 +111,8 @@ export default function InvoiceGenerator() {
   };
 
   const addItem = () => {
-    const demoItem = DEMO_ITEMS[Math.floor(Math.random() * DEMO_ITEMS.length)];
+    const pool = profile.invoice.demo.pool;
+    const demoItem = pool[Math.floor(Math.random() * pool.length)];
     setInvoice((current) => ({
       ...current,
       items: [
@@ -382,39 +134,30 @@ export default function InvoiceGenerator() {
     }));
   };
 
-  const updateLogo = (file: File | undefined) => {
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.addEventListener("load", () => {
-      updateInvoice("logoDataUrl", String(reader.result ?? ""));
-    });
-    reader.readAsDataURL(file);
-  };
-
   const downloadPdf = () => {
     const pdf = buildPdf(invoice, totals);
     const blob = new Blob([pdf], { type: "application/pdf" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = `factuur-${invoice.invoiceNumber || "concept"}.pdf`;
+    link.download = `${profile.invoice.fileName}-${
+      invoice.invoiceNumber.replace(/[^\w-]+/g, "_") || "draft"
+    }.pdf`;
     document.body.appendChild(link);
     link.click();
     link.remove();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
 
+  const labels = profile.invoice.labels;
+
   return (
     <main class="invoice-app">
       <section class="editor-panel" aria-label="Invoice details">
         <div class="panel-header">
-          <nav class="app-nav" aria-label="Pages">
-            <a href="/" aria-current="page">Invoice</a>
-            <a href="/receipts">Receipt</a>
-          </nav>
+          <PageNav current="invoice" />
           <div>
-            <p class="eyebrow">Dutch invoice</p>
+            <p class="eyebrow">{profile.name} invoice</p>
             <h1>Invoice generator</h1>
           </div>
           <div class="action-row">
@@ -431,112 +174,68 @@ export default function InvoiceGenerator() {
           </div>
         </div>
 
-        <section class="logo-editor" aria-label="Logo">
-          <div>
-            <h2>Logo</h2>
-            <p>Upload a JPEG logo for the generated invoice preview and PDF.</p>
-          </div>
-          <div class="logo-control-row">
-            <label class="file-button">
-              Upload logo
-              <input
-                type="file"
-                accept="image/jpeg"
-                onChange={(event) => updateLogo(event.currentTarget.files?.[0])}
-              />
-            </label>
-            {invoice.logoDataUrl && (
-              <button
-                type="button"
-                class="secondary-button"
-                onClick={() => updateInvoice("logoDataUrl", "")}
-              >
-                Remove
-              </button>
-            )}
-          </div>
-          <div class="logo-preview-box">
-            {invoice.logoDataUrl
-              ? <img src={invoice.logoDataUrl} alt="Uploaded logo" />
-              : <span>NL</span>}
-          </div>
-        </section>
+        <LogoEditor
+          logoDataUrl={invoice.logoDataUrl}
+          fallback={profile.code}
+          description="Upload a JPEG logo for the generated invoice preview and PDF."
+          onChange={(value) => updateInvoice("logoDataUrl", value)}
+        />
 
         <div class="form-grid">
-          <label>
-            Currency
-            <select
-              value={invoice.currency}
-              onInput={(event) =>
-                updateInvoice(
-                  "currency",
-                  event.currentTarget.value as CurrencyCode,
-                )}
-            >
-              {CURRENCY_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Invoice number
-            <input
-              value={invoice.invoiceNumber}
-              onInput={(event) =>
-                updateInvoice(
-                  "invoiceNumber",
-                  event.currentTarget.value,
-                )}
-            />
-          </label>
-          <label>
-            Invoice date
-            <input
+          <CountrySelect
+            value={invoice.country}
+            onChange={(code) =>
+              setInvoice(createInvoice(code, invoice.logoDataUrl))}
+          />
+          <TextField
+            label={labels.number}
+            value={invoice.invoiceNumber}
+            onInput={(value) => updateInvoice("invoiceNumber", value)}
+          />
+          <TextField
+            label={labels.issueDate}
+            type="date"
+            value={invoice.invoiceDate}
+            onInput={(value) => updateInvoice("invoiceDate", value)}
+          />
+          {labels.performanceDate && (
+            <TextField
+              label={labels.performanceDate}
               type="date"
-              value={invoice.invoiceDate}
-              onInput={(event) =>
-                updateInvoice("invoiceDate", event.currentTarget.value)}
+              value={invoice.performanceDate}
+              onInput={(value) => updateInvoice("performanceDate", value)}
             />
-          </label>
-          <label>
-            Due date
-            <input
-              type="date"
-              value={invoice.dueDate}
-              onInput={(event) =>
-                updateInvoice("dueDate", event.currentTarget.value)}
-            />
-          </label>
-          <label>
-            Payment term
-            <input
-              value={invoice.paymentTerm}
-              onInput={(event) =>
-                updateInvoice("paymentTerm", event.currentTarget.value)}
-            />
-          </label>
-          <label>
-            Reference
-            <input
-              value={invoice.reference}
-              onInput={(event) =>
-                updateInvoice("reference", event.currentTarget.value)}
-            />
-          </label>
+          )}
+          <TextField
+            label={labels.dueDate}
+            type="date"
+            value={invoice.dueDate}
+            onInput={(value) => updateInvoice("dueDate", value)}
+          />
+          <TextField
+            label={labels.paymentTerm}
+            value={invoice.paymentTerm}
+            onInput={(value) => updateInvoice("paymentTerm", value)}
+          />
+          <TextField
+            label={labels.reference}
+            value={invoice.reference}
+            onInput={(value) => updateInvoice("reference", value)}
+          />
         </div>
 
         <div class="party-grid">
           <PartyFields
-            title="From"
+            title={labels.from}
             party={invoice.seller}
-            onChange={(key, value) => updateParty("seller", key, value)}
+            profile={profile}
             seller
+            onChange={(key, value) => updateParty("seller", key, value)}
           />
           <PartyFields
-            title="Bill to"
+            title={labels.billTo}
             party={invoice.customer}
+            profile={profile}
             onChange={(key, value) => updateParty("customer", key, value)}
           />
         </div>
@@ -552,8 +251,8 @@ export default function InvoiceGenerator() {
             <div class="line-editor-head">
               <span>Description</span>
               <span>Qty</span>
-              <span>Price ({invoice.currency})</span>
-              <span>VAT</span>
+              <span>Price ({fmt.currency})</span>
+              <span>{profile.taxName}</span>
               <span></span>
             </div>
             {invoice.items.map((item) => (
@@ -595,16 +294,12 @@ export default function InvoiceGenerator() {
                     )}
                 />
                 <select
-                  aria-label="VAT"
-                  value={item.vatRate}
+                  aria-label={profile.taxName}
+                  value={item.taxCode}
                   onInput={(event) =>
-                    updateItem(
-                      item.id,
-                      "vatRate",
-                      event.currentTarget.value as VatRate,
-                    )}
+                    updateItem(item.id, "taxCode", event.currentTarget.value)}
                 >
-                  {VAT_OPTIONS.map((option) => (
+                  {profile.taxOptions.map((option) => (
                     <option key={option.value} value={option.value}>
                       {option.label}
                     </option>
@@ -627,7 +322,7 @@ export default function InvoiceGenerator() {
         </section>
 
         <label class="notes-field">
-          Note
+          {labels.notes}
           <textarea
             rows={3}
             value={invoice.notes}
@@ -638,7 +333,12 @@ export default function InvoiceGenerator() {
       </section>
 
       <section class="preview-panel" aria-label="Invoice preview">
-        <InvoicePaper invoice={invoice} totals={totals} />
+        <InvoicePaper
+          invoice={invoice}
+          totals={totals}
+          profile={profile}
+          fmt={fmt}
+        />
       </section>
 
       {previewOpen && (
@@ -657,7 +357,12 @@ export default function InvoiceGenerator() {
             </button>
           </div>
           <div class="modal-paper-wrap">
-            <InvoicePaper invoice={invoice} totals={totals} />
+            <InvoicePaper
+              invoice={invoice}
+              totals={totals}
+              profile={profile}
+              fmt={fmt}
+            />
           </div>
         </div>
       )}
@@ -665,93 +370,72 @@ export default function InvoiceGenerator() {
   );
 }
 
-function PartyFields(
+function TextField(
   props: {
-    title: string;
-    party: Party & Partial<{ kvk: string; iban: string }>;
-    seller?: boolean;
-    onChange: (key: string, value: string) => void;
+    label: string;
+    value: string;
+    type?: string;
+    onInput: (value: string) => void;
   },
 ) {
   return (
+    <label>
+      {props.label}
+      <input
+        type={props.type ?? "text"}
+        value={props.value}
+        onInput={(event) => props.onInput(event.currentTarget.value)}
+      />
+    </label>
+  );
+}
+
+function PartyFields(
+  props: {
+    title: string;
+    party: Party;
+    profile: CountryProfile;
+    seller?: boolean;
+    onChange: (key: keyof Party, value: string) => void;
+  },
+) {
+  const { party, profile } = props;
+  const labels = profile.party;
+  const field = (key: keyof Party, label: string, type?: string) => (
+    <TextField
+      label={label}
+      type={type}
+      value={party[key]}
+      onInput={(value) => props.onChange(key, value)}
+    />
+  );
+
+  return (
     <section class="party-fields">
       <h2>{props.title}</h2>
-      <label>
-        Company name
-        <input
-          value={props.party.name}
-          onInput={(event) => props.onChange("name", event.currentTarget.value)}
-        />
-      </label>
-      <label>
-        Address
-        <input
-          value={props.party.address}
-          onInput={(event) =>
-            props.onChange("address", event.currentTarget.value)}
-        />
-      </label>
-      <label>
-        Postal code and city
-        <input
-          value={props.party.postalCity}
-          onInput={(event) =>
-            props.onChange("postalCity", event.currentTarget.value)}
-        />
-      </label>
-      <label>
-        Country
-        <input
-          value={props.party.country}
-          onInput={(event) =>
-            props.onChange("country", event.currentTarget.value)}
-        />
-      </label>
-      <label>
-        Email
-        <input
-          type="email"
-          value={props.party.email}
-          onInput={(event) =>
-            props.onChange("email", event.currentTarget.value)}
-        />
-      </label>
-      <label>
-        VAT number
-        <input
-          value={props.party.taxId}
-          onInput={(event) =>
-            props.onChange("taxId", event.currentTarget.value)}
-        />
-      </label>
-      {props.seller && (
-        <>
-          <label>
-            KvK
-            <input
-              value={props.party.kvk}
-              onInput={(event) =>
-                props.onChange("kvk", event.currentTarget.value)}
-            />
-          </label>
-          <label>
-            IBAN
-            <input
-              value={props.party.iban}
-              onInput={(event) =>
-                props.onChange("iban", event.currentTarget.value)}
-            />
-          </label>
-        </>
-      )}
+      {field("name", "Company name")}
+      {field("address", "Address")}
+      {field("postalCity", "Postal code and city")}
+      {field("country", "Country")}
+      {field("email", "Email", "email")}
+      {(props.seller || labels.customerTaxId) &&
+        field("taxId", labels.taxIdLabel)}
+      {props.seller && labels.registrationLabel &&
+        field("registrationId", labels.registrationLabel)}
+      {props.seller && field("bankAccount", labels.bankLabel)}
     </section>
   );
 }
 
-function InvoicePaper(
-  props: { invoice: InvoiceState; totals: ReturnType<typeof calculateTotals> },
-) {
-  const { invoice, totals } = props;
+type PaperProps = {
+  invoice: InvoiceState;
+  totals: ReturnType<typeof calculateTotals>;
+  profile: CountryProfile;
+  fmt: Formatters;
+};
+
+function InvoicePaper({ invoice, totals, profile, fmt }: PaperProps) {
+  const labels = profile.invoice.labels;
 
   return (
     <article class="invoice-paper">
@@ -766,84 +450,132 @@ function InvoicePaper(
           )
           : (
             <div class="logo-mark" aria-hidden="true">
-              NL
+              {profile.code}
             </div>
           )}
         <div class="invoice-title">
-          <p>Factuur</p>
+          <p>{profile.invoice.title}</p>
           <h2>{invoice.invoiceNumber}</h2>
         </div>
       </header>
 
       <section class="invoice-addresses">
-        <AddressBlock title="Van" party={invoice.seller} seller />
-        <AddressBlock title="Factuur aan" party={invoice.customer} />
+        <AddressBlock
+          title={labels.from}
+          party={invoice.seller}
+          profile={profile}
+          seller
+        />
+        <AddressBlock
+          title={labels.billTo}
+          party={invoice.customer}
+          profile={profile}
+        />
       </section>
 
       <section class="invoice-meta">
-        <Meta label="Factuurdatum" value={formatDate(invoice.invoiceDate)} />
-        <Meta label="Vervaldatum" value={formatDate(invoice.dueDate)} />
-        <Meta label="Betalingstermijn" value={invoice.paymentTerm} />
-        <Meta label="Referentie" value={invoice.reference} />
+        <Meta label={labels.issueDate} value={fmt.date(invoice.invoiceDate)} />
+        {labels.performanceDate && (
+          <Meta
+            label={labels.performanceDate}
+            value={fmt.date(invoice.performanceDate)}
+          />
+        )}
+        <Meta label={labels.dueDate} value={fmt.date(invoice.dueDate)} />
+        <Meta label={labels.paymentTerm} value={invoice.paymentTerm} />
+        <Meta label={labels.reference} value={invoice.reference} />
       </section>
 
       <div class="invoice-table">
         <div class="invoice-table-head">
-          <span>Omschrijving</span>
-          <span>Aantal</span>
-          <span>Prijs</span>
-          <span>Btw</span>
-          <span>Totaal</span>
+          <span>{labels.description}</span>
+          <span>{labels.quantity}</span>
+          <span>{labels.unitPrice}</span>
+          <span>{labels.tax}</span>
+          <span>{labels.amount}</span>
         </div>
-        {invoice.items.map((item) => {
-          const lineNet = item.quantity * item.unitPrice;
-          return (
-            <div class="invoice-table-row" key={item.id}>
-              <span>{item.description}</span>
-              <span>{formatQuantity(item.quantity)}</span>
-              <span>{formatMoney(item.unitPrice, invoice.currency)}</span>
-              <span>{vatLabel(item.vatRate)}</span>
-              <span>{formatMoney(lineNet, invoice.currency)}</span>
-            </div>
-          );
-        })}
+        {invoice.items.map((item) => (
+          <div class="invoice-table-row" key={item.id}>
+            <span>{item.description}</span>
+            <span>{fmt.quantity(item.quantity)}</span>
+            <span>{fmt.money(item.unitPrice)}</span>
+            <span>{taxOption(profile, item.taxCode).shortLabel}</span>
+            <span>{fmt.money(item.quantity * item.unitPrice)}</span>
+          </div>
+        ))}
       </div>
 
       <section class="invoice-bottom">
         <div class="invoice-note">
-          <h3>Notitie</h3>
+          <h3>{labels.notes}</h3>
           <p>{invoice.notes}</p>
-          <p class="bank-line">IBAN: {invoice.seller.iban}</p>
+          <p class="bank-line">
+            {profile.party.bankLabel}: {invoice.seller.bankAccount}
+          </p>
+          {profile.invoice.taxTable && (
+            <table class="invoice-tax-table">
+              <thead>
+                <tr>
+                  <th>{profile.invoice.taxTable.rate}</th>
+                  <th>{profile.invoice.taxTable.base}</th>
+                  <th>{profile.invoice.taxTable.tax}</th>
+                  <th>{profile.invoice.taxTable.gross}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {totals.taxRows.map((row) => (
+                  <tr key={row.code}>
+                    <td>{row.shortLabel}</td>
+                    <td>{fmt.money(row.base)}</td>
+                    <td>{fmt.money(row.amount)}</td>
+                    <td>{fmt.money(row.base + row.amount)}</td>
+                  </tr>
+                ))}
+                {totals.exemptTotal > 0 && (
+                  <tr>
+                    <td>{labels.exempt}</td>
+                    <td>{fmt.money(totals.exemptTotal)}</td>
+                    <td>{fmt.money(0)}</td>
+                    <td>{fmt.money(totals.exemptTotal)}</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          )}
         </div>
         <div class="totals-box">
           <TotalRow
-            label="Subtotaal"
-            value={formatMoney(totals.subtotal, invoice.currency)}
+            label={labels.subtotal}
+            value={fmt.money(totals.subtotal)}
           />
-          {totals.vatRows.map((row) => (
+          {totals.taxRows.map((row) => (
             <TotalRow
-              key={row.label}
-              label={`Btw ${row.label}`}
-              value={formatMoney(row.amount, invoice.currency)}
+              key={row.code}
+              label={row.label}
+              value={fmt.money(row.amount)}
             />
           ))}
           {totals.exemptTotal > 0 && (
             <TotalRow
-              label="Vrijgesteld"
-              value={formatMoney(totals.exemptTotal, invoice.currency)}
+              label={labels.exempt}
+              value={fmt.money(totals.exemptTotal)}
             />
           )}
           <div class="grand-total">
-            <span>Totaal</span>
-            <strong>{formatMoney(totals.total, invoice.currency)}</strong>
+            <span>{labels.total}</span>
+            <strong>{fmt.money(totals.total)}</strong>
           </div>
         </div>
       </section>
 
       <footer class="invoice-footer">
         <span>{invoice.seller.name}</span>
-        <span>KvK {invoice.seller.kvk}</span>
-        <span>Btw {invoice.seller.taxId}</span>
+        {profile.party.registrationLabel && invoice.seller.registrationId && (
+          <span>
+            {profile.party.registrationLabel} {invoice.seller.registrationId}
+          </span>
+        )}
+        <span>{profile.party.taxIdLabel} {invoice.seller.taxId}</span>
         <span>{invoice.seller.email}</span>
       </footer>
     </article>
@@ -853,20 +585,27 @@ function InvoicePaper(
 function AddressBlock(
   props: {
     title: string;
-    party: Party & Partial<{ kvk: string; iban: string }>;
+    party: Party;
+    profile: CountryProfile;
     seller?: boolean;
   },
 ) {
+  const { party, profile } = props;
+  const showTaxId = (props.seller || profile.party.customerTaxId) &&
+    party.taxId;
   return (
     <div>
       <h3>{props.title}</h3>
-      <p class="address-name">{props.party.name}</p>
-      <p>{props.party.address}</p>
-      <p>{props.party.postalCity}</p>
-      <p>{props.party.country}</p>
-      <p>{props.party.email}</p>
-      <p>Btw: {props.party.taxId}</p>
-      {props.seller && <p>KvK: {props.party.kvk}</p>}
+      <p class="address-name">{party.name}</p>
+      <p>{party.address}</p>
+      <p>{party.postalCity}</p>
+      <p>{party.country}</p>
+      <p>{party.email}</p>
+      {showTaxId && <p>{profile.party.taxIdLabel}: {party.taxId}</p>}
+      {props.seller && profile.party.registrationLabel &&
+        party.registrationId && (
+        <p>{profile.party.registrationLabel}: {party.registrationId}</p>
+      )}
     </div>
   );
 }
@@ -889,37 +628,45 @@ function TotalRow(props: { label: string; value: string }) {
   );
 }
 
-export function calculateTotals(items: LineItem[]) {
+export function calculateTotals(items: LineItem[], profile: CountryProfile) {
   const subtotal = items.reduce(
     (sum, item) => sum + item.quantity * item.unitPrice,
     0,
   );
-  const buckets = new Map<VatRate, number>();
+  const buckets = new Map<string, { base: number; amount: number }>();
   let exemptTotal = 0;
 
   for (const item of items) {
     const net = item.quantity * item.unitPrice;
-    if (item.vatRate === "exempt") {
+    const option = taxOption(profile, item.taxCode);
+    if (option.exempt) {
       exemptTotal += net;
       continue;
     }
-    const rate = Number(item.vatRate) / 100;
-    buckets.set(item.vatRate, (buckets.get(item.vatRate) ?? 0) + net * rate);
+    const bucket = buckets.get(option.value) ?? { base: 0, amount: 0 };
+    bucket.base += net;
+    bucket.amount += net * option.rate;
+    buckets.set(option.value, bucket);
   }
 
-  const vatRows = Array.from(buckets.entries())
-    .filter(([, amount]) => amount > 0)
-    .sort(([a], [b]) => Number(b) - Number(a))
-    .map(([rate, amount]) => ({ label: `${rate}%`, amount }));
+  const taxRows = profile.taxOptions
+    .filter((option) => !option.exempt && buckets.has(option.value))
+    .map((option) => ({
+      code: option.value,
+      shortLabel: option.shortLabel,
+      label: `${profile.taxName} ${option.shortLabel}`,
+      ...buckets.get(option.value)!,
+    }))
+    .filter((row) => row.base > 0);
 
-  const vatTotal = vatRows.reduce((sum, row) => sum + row.amount, 0);
+  const taxTotal = taxRows.reduce((sum, row) => sum + row.amount, 0);
 
   return {
     subtotal,
     exemptTotal,
-    vatRows,
-    vatTotal,
-    total: subtotal + vatTotal,
+    taxRows,
+    taxTotal,
+    total: subtotal + taxTotal,
   };
 }
 
@@ -927,6 +674,10 @@ export function buildPdf(
   invoice: InvoiceState,
   totals: ReturnType<typeof calculateTotals>,
 ) {
+  const profile = COUNTRIES[invoice.country];
+  const labels = profile.invoice.labels;
+  const fmt = createFormatters(profile.format);
+
   const PAGE_TOP = 785;
   const CONTINUATION_TABLE_TOP = 740;
   const FIRST_PAGE_TABLE_TOP = 559;
@@ -976,8 +727,8 @@ export function buildPdf(
 
   const startContinuationPage = () => {
     startPage();
-    bold(48, PAGE_TOP, 13, `Factuur ${invoice.invoiceNumber}`);
-    text(48, PAGE_TOP - 15, 9, "Vervolg");
+    bold(48, PAGE_TOP, 13, `${profile.invoice.title} ${invoice.invoiceNumber}`);
+    text(48, PAGE_TOP - 15, 9, labels.continued);
     bold(380, PAGE_TOP, 13, invoice.seller.name);
     line(48, PAGE_TOP - 27, 548, PAGE_TOP - 27);
   };
@@ -987,11 +738,11 @@ export function buildPdf(
   const drawTableHeader = (top: number) => {
     fillRect(48, top - 24, 500, 24, 0.18);
     content.push("1 1 1 rg");
-    bold(60, top - 16, 9, "Omschrijving");
-    bold(280, top - 16, 9, "Aantal");
-    bold(340, top - 16, 9, "Prijs");
-    bold(410, top - 16, 9, "Btw");
-    bold(480, top - 16, 9, "Totaal");
+    bold(60, top - 16, 9, labels.description);
+    bold(280, top - 16, 9, labels.quantity);
+    bold(340, top - 16, 9, labels.unitPrice);
+    bold(410, top - 16, 9, labels.tax);
+    bold(474, top - 16, 9, labels.amount);
     content.push("0 0 0 rg");
     return top - 47;
   };
@@ -1001,34 +752,57 @@ export function buildPdf(
   if (logoImage) {
     const logoBox = fitImage(logoImage.width, logoImage.height, 132, 46);
     image("Logo", 48, 786 - logoBox.height, logoBox.width, logoBox.height);
+    bold(48, 718, 22, profile.invoice.title);
+    text(48, 697, 10, invoice.invoiceNumber);
   } else {
-    bold(48, 785, 30, "Factuur");
+    bold(48, 785, 30, profile.invoice.title);
     text(48, 760, 11, invoice.invoiceNumber);
   }
-  if (logoImage) {
-    bold(48, 718, 22, "Factuur");
-    text(48, 697, 10, invoice.invoiceNumber);
-  }
-  bold(380, 785, 13, invoice.seller.name);
-  text(380, 766, 10, invoice.seller.address);
-  text(380, 752, 10, invoice.seller.postalCity);
-  text(380, 738, 10, invoice.seller.country);
-  text(380, 724, 10, `Btw ${invoice.seller.taxId}`);
-  text(380, 710, 10, `KvK ${invoice.seller.kvk}`);
-  text(380, 696, 10, invoice.seller.email);
+
+  const seller = invoice.seller;
+  const sellerLines = [
+    seller.address,
+    seller.postalCity,
+    seller.country,
+    `${profile.party.taxIdLabel} ${seller.taxId}`,
+    profile.party.registrationLabel && seller.registrationId
+      ? `${profile.party.registrationLabel} ${seller.registrationId}`
+      : "",
+    seller.email,
+  ].filter(Boolean);
+  bold(380, 785, 13, seller.name);
+  sellerLines.forEach((value, index) => {
+    text(380, 766 - index * 14, 10, value);
+  });
 
   fillRect(48, 646, 500, 38, 0.94);
-  bold(62, 664, 10, "Factuur aan");
-  bold(320, 664, 10, "Factuurgegevens");
-  text(62, 620, 10, invoice.customer.name);
-  text(62, 606, 10, invoice.customer.address);
-  text(62, 592, 10, invoice.customer.postalCity);
-  text(62, 578, 10, invoice.customer.country);
-  text(62, 564, 10, `Btw ${invoice.customer.taxId}`);
-  text(320, 620, 10, `Datum: ${formatDate(invoice.invoiceDate)}`);
-  text(320, 606, 10, `Vervaldatum: ${formatDate(invoice.dueDate)}`);
-  text(320, 592, 10, `Termijn: ${invoice.paymentTerm}`);
-  text(320, 578, 10, `Referentie: ${invoice.reference}`);
+  bold(62, 664, 10, labels.billTo);
+  bold(320, 664, 10, labels.details);
+  const customer = invoice.customer;
+  const customerLines = [
+    customer.name,
+    customer.address,
+    customer.postalCity,
+    customer.country,
+    profile.party.customerTaxId && customer.taxId
+      ? `${profile.party.taxIdLabel} ${customer.taxId}`
+      : "",
+  ].filter(Boolean);
+  customerLines.forEach((value, index) => {
+    text(62, 620 - index * 14, 10, value);
+  });
+  const metaLines = [
+    `${labels.issueDate}: ${fmt.date(invoice.invoiceDate)}`,
+    labels.performanceDate
+      ? `${labels.performanceDate}: ${fmt.date(invoice.performanceDate)}`
+      : "",
+    `${labels.dueDate}: ${fmt.date(invoice.dueDate)}`,
+    `${labels.paymentTerm}: ${invoice.paymentTerm}`,
+    `${labels.reference}: ${invoice.reference}`,
+  ].filter(Boolean);
+  metaLines.forEach((value, index) => {
+    text(320, 620 - index * 14, 10, value);
+  });
 
   let y = drawTableHeader(FIRST_PAGE_TABLE_TOP);
 
@@ -1039,59 +813,84 @@ export function buildPdf(
     }
     const lineTotal = item.quantity * item.unitPrice;
     text(60, y, 9, truncate(item.description, 36));
-    text(284, y, 9, formatQuantity(item.quantity));
-    text(340, y, 9, formatMoneyPdf(item.unitPrice, invoice.currency));
-    text(414, y, 9, vatLabel(item.vatRate));
-    text(474, y, 9, formatMoneyPdf(lineTotal, invoice.currency));
+    text(284, y, 9, fmt.quantity(item.quantity));
+    text(340, y, 9, fmt.moneyPdf(item.unitPrice));
+    text(414, y, 9, taxOption(profile, item.taxCode).shortLabel);
+    text(474, y, 9, fmt.moneyPdf(lineTotal));
     line(48, y - 9, 548, y - 9);
     y -= ROW_HEIGHT;
   });
 
-  // Totals and notes are drawn as one block directly under the last row.
-  // If the block does not fit above the footer, it moves to a new page.
+  // Totals, the optional tax table and the notes are drawn as one block under
+  // the last row. If it does not fit above the footer, it moves to a new page.
   const noteLines = wrapText(invoice.notes, 68);
-  const totalsRows = totals.vatRows.length + (totals.exemptTotal > 0 ? 1 : 0);
-  const totalsBlockHeight = 24 + 20 + 18 * totalsRows + 8 + 12;
+  const totalsRowCount = totals.taxRows.length +
+    (totals.exemptTotal > 0 ? 1 : 0);
+  const totalsBlockHeight = 24 + 20 + 18 * totalsRowCount + 8 + 12;
+  const taxTableHeight = profile.invoice.taxTable
+    ? 14 * (totalsRowCount + 1) + 22
+    : 0;
   const notesBlockHeight = 24 + 19 + Math.max(0, noteLines.length - 1) * 14;
   let totalsTop = y + 4;
-  if (totalsTop - totalsBlockHeight - notesBlockHeight < FOOTER_TOP) {
+  if (
+    totalsTop - totalsBlockHeight - taxTableHeight - notesBlockHeight <
+      FOOTER_TOP
+  ) {
     startContinuationPage();
     totalsTop = CONTINUATION_TABLE_TOP;
   }
 
   line(320, totalsTop, 548, totalsTop);
-  text(330, totalsTop - 24, 10, "Subtotaal");
-  bold(
-    464,
-    totalsTop - 24,
-    10,
-    formatMoneyPdf(totals.subtotal, invoice.currency),
-  );
+  text(330, totalsTop - 24, 10, labels.subtotal);
+  bold(464, totalsTop - 24, 10, fmt.moneyPdf(totals.subtotal));
   let totalLineY = totalsTop - 44;
-  totals.vatRows.forEach((row) => {
-    text(330, totalLineY, 10, `Btw ${row.label}`);
-    bold(464, totalLineY, 10, formatMoneyPdf(row.amount, invoice.currency));
+  totals.taxRows.forEach((row) => {
+    text(330, totalLineY, 10, row.label);
+    bold(464, totalLineY, 10, fmt.moneyPdf(row.amount));
     totalLineY -= 18;
   });
   if (totals.exemptTotal > 0) {
-    text(330, totalLineY, 10, "Vrijgesteld");
-    bold(
-      464,
-      totalLineY,
-      10,
-      formatMoneyPdf(totals.exemptTotal, invoice.currency),
-    );
+    text(330, totalLineY, 10, labels.exempt);
+    bold(464, totalLineY, 10, fmt.moneyPdf(totals.exemptTotal));
     totalLineY -= 18;
   }
   totalLineY -= 8;
   fillRect(320, totalLineY - 12, 228, 28, 0.18);
   content.push("1 1 1 rg");
-  bold(330, totalLineY - 2, 11, "Totaal");
-  bold(454, totalLineY - 2, 11, formatMoneyPdf(totals.total, invoice.currency));
+  bold(330, totalLineY - 2, 11, labels.total);
+  bold(440, totalLineY - 2, 11, fmt.moneyPdf(totals.total));
   content.push("0 0 0 rg");
 
-  const notesTitleY = totalLineY - 12 - 24;
-  bold(48, notesTitleY, 10, "Notitie");
+  let leftY = totalsTop - 24;
+  if (profile.invoice.taxTable) {
+    const columns = [48, 110, 185, 255];
+    const cells = (values: string[], draw: typeof text) => {
+      values.forEach((value, index) => draw(columns[index], leftY, 8, value));
+      leftY -= 14;
+    };
+    const table = profile.invoice.taxTable;
+    cells([table.rate, table.base, table.tax, table.gross], bold);
+    totals.taxRows.forEach((row) => {
+      cells([
+        row.shortLabel,
+        fmt.moneyPdf(row.base),
+        fmt.moneyPdf(row.amount),
+        fmt.moneyPdf(row.base + row.amount),
+      ], text);
+    });
+    if (totals.exemptTotal > 0) {
+      cells([
+        labels.exempt,
+        fmt.moneyPdf(totals.exemptTotal),
+        fmt.moneyPdf(0),
+        fmt.moneyPdf(totals.exemptTotal),
+      ], text);
+    }
+    leftY -= 8;
+  }
+
+  const notesTitleY = Math.min(totalLineY - 12 - 24, leftY);
+  bold(48, notesTitleY, 10, labels.notes);
   noteLines.forEach((part, index) => {
     text(48, notesTitleY - 19 - index * 14, 9, part);
   });
@@ -1099,9 +898,9 @@ export function buildPdf(
   const pageCount = pages.length;
   pages.forEach((pageContent, index) => {
     content = pageContent;
-    text(48, 74, 9, `IBAN: ${invoice.seller.iban}`);
-    text(48, 48, 8, `${invoice.seller.name} | ${invoice.seller.email}`);
-    text(470, 48, 8, `Pagina ${index + 1} van ${pageCount}`);
+    text(48, 74, 9, `${profile.party.bankLabel}: ${seller.bankAccount}`);
+    text(48, 48, 8, `${seller.name} | ${seller.email}`);
+    text(470, 48, 8, labels.page(index + 1, pageCount));
   });
 
   return createPdf(

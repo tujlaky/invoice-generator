@@ -28,11 +28,13 @@ export function createPdf(
   addObject(new Uint8Array());
   addObject(new Uint8Array());
   const regularFontId = addObject(
-    encoder.encode("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>"),
+    encoder.encode(
+      "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>",
+    ),
   );
   const boldFontId = addObject(
     encoder.encode(
-      "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>",
+      "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>",
     ),
   );
 
@@ -180,16 +182,24 @@ export function concatBytes(chunks: Uint8Array[]) {
   return result;
 }
 
+// Encodes a string for a Helvetica font using WinAnsiEncoding. Characters
+// outside that encoding (such as Hungarian ő/ű) fall back to their base
+// letter; anything else unprintable is dropped.
 export function pdfText(value: string) {
-  const safeValue = value
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
-    .replace(/[^\x20-\x7E]/g, "");
-
-  return `(${
-    safeValue
-      .replace(/\\/g, "\\\\")
-      .replace(/\(/g, "\\(")
-      .replace(/\)/g, "\\)")
-  })`;
+  let out = "";
+  for (const char of value.replace(/[\u00a0\u202f]/g, " ")) {
+    const code = char.charCodeAt(0);
+    if (code >= 0x20 && code <= 0x7e) {
+      out += char === "\\" || char === "(" || char === ")" ? `\\${char}` : char;
+    } else if (code >= 0xa0 && code <= 0xff) {
+      out += `\\${code.toString(8).padStart(3, "0")}`;
+    } else if (char === "\u20ac") {
+      out += "\\200";
+    } else {
+      const base = char.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+      const baseCode = base.charCodeAt(0);
+      if (base && baseCode >= 0x20 && baseCode <= 0x7e) out += base;
+    }
+  }
+  return `(${out})`;
 }

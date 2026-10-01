@@ -1,52 +1,42 @@
 import { useMemo, useState } from "preact/hooks";
 import {
-  CURRENCY_OPTIONS,
-  type CurrencyCode,
-  formatAmount,
-  formatDate,
-  formatMoney,
-  formatMoneyPdf,
-  formatQuantity,
+  COUNTRIES,
+  type CountryCode,
+  type CountryProfile,
+  type Shop,
+  type TaxOption,
+  taxOption,
+} from "@/lib/countries.ts";
+import {
+  createFormatters,
+  type Formatters,
   toInputDate,
+  toInputTime,
   toNumber,
   truncate,
-  VAT_OPTIONS,
-  vatFactor,
-  vatLabel,
-  type VatRate,
   wrapText,
 } from "@/lib/format.ts";
 import { createPdf, fitImage, parseJpegDataUrl, pdfText } from "@/lib/pdf.ts";
+import { CountrySelect } from "@/components/CountrySelect.tsx";
+import { LogoEditor } from "@/components/LogoEditor.tsx";
+import { PageNav } from "@/components/PageNav.tsx";
 
-// Receipt prices are consumer prices and therefore include VAT.
 type ReceiptItem = {
   id: number;
   description: string;
   quantity: number;
   unitPrice: number;
-  vatRate: VatRate;
-};
-
-type PaymentMethod = "PIN" | "Contant" | "iDEAL" | "Creditcard";
-
-type Shop = {
-  name: string;
-  address: string;
-  postalCity: string;
-  phone: string;
-  website: string;
-  kvk: string;
-  taxId: string;
+  taxCode: string;
 };
 
 type ReceiptState = {
-  currency: CurrencyCode;
+  country: CountryCode;
   receiptNumber: string;
   date: string;
   time: string;
   register: string;
   cashier: string;
-  paymentMethod: PaymentMethod;
+  paymentMethod: string;
   cashReceived: number;
   logoDataUrl: string;
   shop: Shop;
@@ -54,198 +44,40 @@ type ReceiptState = {
   items: ReceiptItem[];
 };
 
-const PAYMENT_OPTIONS: PaymentMethod[] = [
-  "PIN",
-  "Contant",
-  "iDEAL",
-  "Creditcard",
-];
-
-const DEMO_ITEMS: Array<Omit<ReceiptItem, "id">> = [
-  {
-    description: "Halfvolle melk 1 l",
-    quantity: 1,
-    unitPrice: 1.19,
-    vatRate: "9",
-  },
-  { description: "Volkorenbrood", quantity: 1, unitPrice: 2.79, vatRate: "9" },
-  {
-    description: "Jong belegen kaas 500 g",
-    quantity: 1,
-    unitPrice: 6.49,
-    vatRate: "9",
-  },
-  {
-    description: "Bananen (per kg)",
-    quantity: 1.2,
-    unitPrice: 1.89,
-    vatRate: "9",
-  },
-  {
-    description: "Snelfilterkoffie 500 g",
-    quantity: 1,
-    unitPrice: 7.99,
-    vatRate: "9",
-  },
-  {
-    description: "Pindakaas 350 g",
-    quantity: 1,
-    unitPrice: 2.59,
-    vatRate: "9",
-  },
-  {
-    description: "Appels Elstar 1 kg",
-    quantity: 1,
-    unitPrice: 2.99,
-    vatRate: "9",
-  },
-  {
-    description: "Scharreleieren 10 st",
-    quantity: 1,
-    unitPrice: 3.29,
-    vatRate: "9",
-  },
-  {
-    description: "Roomboter 250 g",
-    quantity: 2,
-    unitPrice: 2.49,
-    vatRate: "9",
-  },
-  {
-    description: "Mineraalwater 1,5 l",
-    quantity: 2,
-    unitPrice: 0.95,
-    vatRate: "9",
-  },
-  { description: "Kipfilet 500 g", quantity: 1, unitPrice: 6.29, vatRate: "9" },
-  {
-    description: "Chocoladereep 100 g",
-    quantity: 3,
-    unitPrice: 1.49,
-    vatRate: "9",
-  },
-  {
-    description: "Paracetamol 500 mg 20 st",
-    quantity: 1,
-    unitPrice: 1.79,
-    vatRate: "9",
-  },
-  { description: "Tijdschrift", quantity: 1, unitPrice: 6.95, vatRate: "9" },
-  { description: "Boeket tulpen", quantity: 1, unitPrice: 4.99, vatRate: "9" },
-  {
-    description: "Pils 6 x 33 cl",
-    quantity: 1,
-    unitPrice: 5.99,
-    vatRate: "21",
-  },
-  {
-    description: "Rode wijn 75 cl",
-    quantity: 1,
-    unitPrice: 8.49,
-    vatRate: "21",
-  },
-  {
-    description: "Shampoo 300 ml",
-    quantity: 1,
-    unitPrice: 4.29,
-    vatRate: "21",
-  },
-  {
-    description: "Tandpasta 75 ml",
-    quantity: 2,
-    unitPrice: 2.19,
-    vatRate: "21",
-  },
-  {
-    description: "Batterijen AA 4 st",
-    quantity: 1,
-    unitPrice: 5.49,
-    vatRate: "21",
-  },
-  {
-    description: "Vuilniszakken 60 l 20 st",
-    quantity: 1,
-    unitPrice: 3.19,
-    vatRate: "21",
-  },
-  {
-    description: "Afwasmiddel 500 ml",
-    quantity: 1,
-    unitPrice: 1.99,
-    vatRate: "21",
-  },
-  {
-    description: "Boodschappentas",
-    quantity: 1,
-    unitPrice: 0.25,
-    vatRate: "21",
-  },
-  {
-    description: "Postzegels NL 1 (10 st)",
-    quantity: 1,
-    unitPrice: 11.4,
-    vatRate: "exempt",
-  },
-  { description: "Cadeaubon", quantity: 1, unitPrice: 25, vatRate: "0" },
-];
-
-const now = new Date();
-
-const initialReceipt: ReceiptState = {
-  currency: "EUR",
-  receiptNumber: "2026-000481",
-  date: toInputDate(now),
-  time: `${String(now.getHours()).padStart(2, "0")}:${
-    String(now.getMinutes()).padStart(2, "0")
-  }`,
-  register: "3",
-  cashier: "Sanne",
-  paymentMethod: "PIN",
-  cashReceived: 0,
-  logoDataUrl: "",
-  shop: {
-    name: "Buurtsuper De Linde",
-    address: "Lindenstraat 12",
-    postalCity: "3512 AB Utrecht",
-    phone: "030 123 45 67",
-    website: "www.buurtsuperdelinde.nl",
-    kvk: "87654321",
-    taxId: "NL001234567B01",
-  },
-  footerMessage:
-    "Bedankt voor uw aankoop! Ruilen of retourneren kan binnen 14 dagen op vertoon van deze bon.",
-  items: [
-    {
-      id: 1,
-      description: "Halfvolle melk 1 l",
-      quantity: 2,
-      unitPrice: 1.19,
-      vatRate: "9",
-    },
-    {
-      id: 2,
-      description: "Volkorenbrood",
-      quantity: 1,
-      unitPrice: 2.79,
-      vatRate: "9",
-    },
-    {
-      id: 3,
-      description: "Afwasmiddel 500 ml",
-      quantity: 1,
-      unitPrice: 1.99,
-      vatRate: "21",
-    },
-  ],
-};
+function createReceipt(country: CountryCode, logoDataUrl = ""): ReceiptState {
+  const receipt = COUNTRIES[country].receipt;
+  const now = new Date();
+  return {
+    country,
+    receiptNumber: receipt.demo.number,
+    date: toInputDate(now),
+    time: toInputTime(now),
+    register: receipt.demo.register,
+    cashier: receipt.demo.cashier,
+    paymentMethod: receipt.paymentMethods[0],
+    cashReceived: 0,
+    logoDataUrl,
+    shop: { ...receipt.demo.shop },
+    footerMessage: receipt.demo.footer,
+    items: receipt.demo.items.map((item, index) => ({
+      ...item,
+      id: index + 1,
+    })),
+  };
+}
 
 export default function ReceiptGenerator() {
-  const [receipt, setReceipt] = useState<ReceiptState>(initialReceipt);
-  const [previewOpen, setPreviewOpen] = useState(false);
-  const totals = useMemo(
-    () => calculateReceiptTotals(receipt.items),
-    [receipt.items],
+  const [receipt, setReceipt] = useState<ReceiptState>(() =>
+    createReceipt("NL")
   );
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const profile = COUNTRIES[receipt.country];
+  const fmt = useMemo(() => createFormatters(profile.format), [profile]);
+  const totals = useMemo(
+    () => calculateReceiptTotals(receipt.items, profile),
+    [receipt.items, profile],
+  );
+  const labels = profile.receipt.labels;
 
   const updateReceipt = <K extends keyof ReceiptState>(
     key: K,
@@ -275,7 +107,8 @@ export default function ReceiptGenerator() {
   };
 
   const addItem = () => {
-    const demoItem = DEMO_ITEMS[Math.floor(Math.random() * DEMO_ITEMS.length)];
+    const pool = profile.receipt.demo.pool;
+    const demoItem = pool[Math.floor(Math.random() * pool.length)];
     setReceipt((current) => ({
       ...current,
       items: [
@@ -297,39 +130,30 @@ export default function ReceiptGenerator() {
     }));
   };
 
-  const updateLogo = (file: File | undefined) => {
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.addEventListener("load", () => {
-      updateReceipt("logoDataUrl", String(reader.result ?? ""));
-    });
-    reader.readAsDataURL(file);
-  };
-
   const downloadPdf = () => {
     const pdf = buildReceiptPdf(receipt, totals);
     const blob = new Blob([pdf], { type: "application/pdf" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = `bon-${receipt.receiptNumber || "concept"}.pdf`;
+    link.download = `${profile.receipt.fileName}-${
+      receipt.receiptNumber.replace(/[^\w-]+/g, "_") || "draft"
+    }.pdf`;
     document.body.appendChild(link);
     link.click();
     link.remove();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
 
+  const isCash = receipt.paymentMethod === profile.receipt.cashMethod;
+
   return (
     <main class="invoice-app">
       <section class="editor-panel" aria-label="Receipt details">
         <div class="panel-header">
-          <nav class="app-nav" aria-label="Pages">
-            <a href="/">Invoice</a>
-            <a href="/receipts" aria-current="page">Receipt</a>
-          </nav>
+          <PageNav current="receipt" />
           <div>
-            <p class="eyebrow">Dutch receipt</p>
+            <p class="eyebrow">{profile.name} receipt</p>
             <h1>Receipt generator</h1>
           </div>
           <div class="action-row">
@@ -346,115 +170,61 @@ export default function ReceiptGenerator() {
           </div>
         </div>
 
-        <section class="logo-editor" aria-label="Logo">
-          <div>
-            <h2>Logo</h2>
-            <p>Upload a JPEG logo for the receipt preview and PDF.</p>
-          </div>
-          <div class="logo-control-row">
-            <label class="file-button">
-              Upload logo
-              <input
-                type="file"
-                accept="image/jpeg"
-                onChange={(event) => updateLogo(event.currentTarget.files?.[0])}
-              />
-            </label>
-            {receipt.logoDataUrl && (
-              <button
-                type="button"
-                class="secondary-button"
-                onClick={() => updateReceipt("logoDataUrl", "")}
-              >
-                Remove
-              </button>
-            )}
-          </div>
-          <div class="logo-preview-box">
-            {receipt.logoDataUrl
-              ? <img src={receipt.logoDataUrl} alt="Uploaded logo" />
-              : <span>NL</span>}
-          </div>
-        </section>
+        <LogoEditor
+          logoDataUrl={receipt.logoDataUrl}
+          fallback={profile.code}
+          description="Upload a JPEG logo for the receipt preview and PDF."
+          onChange={(value) => updateReceipt("logoDataUrl", value)}
+        />
 
         <div class="form-grid">
-          <label>
-            Currency
-            <select
-              value={receipt.currency}
-              onInput={(event) =>
-                updateReceipt(
-                  "currency",
-                  event.currentTarget.value as CurrencyCode,
-                )}
-            >
-              {CURRENCY_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Receipt number
-            <input
-              value={receipt.receiptNumber}
-              onInput={(event) =>
-                updateReceipt("receiptNumber", event.currentTarget.value)}
-            />
-          </label>
-          <label>
-            Date
-            <input
-              type="date"
-              value={receipt.date}
-              onInput={(event) =>
-                updateReceipt("date", event.currentTarget.value)}
-            />
-          </label>
-          <label>
-            Time
-            <input
-              type="time"
-              value={receipt.time}
-              onInput={(event) =>
-                updateReceipt("time", event.currentTarget.value)}
-            />
-          </label>
-          <label>
-            Register
-            <input
-              value={receipt.register}
-              onInput={(event) =>
-                updateReceipt("register", event.currentTarget.value)}
-            />
-          </label>
-          <label>
-            Cashier
-            <input
-              value={receipt.cashier}
-              onInput={(event) =>
-                updateReceipt("cashier", event.currentTarget.value)}
-            />
-          </label>
+          <CountrySelect
+            value={receipt.country}
+            onChange={(code) =>
+              setReceipt(createReceipt(code, receipt.logoDataUrl))}
+          />
+          <Field
+            label={labels.number}
+            value={receipt.receiptNumber}
+            onInput={(value) => updateReceipt("receiptNumber", value)}
+          />
+          <Field
+            label={labels.date}
+            type="date"
+            value={receipt.date}
+            onInput={(value) => updateReceipt("date", value)}
+          />
+          <Field
+            label={labels.time}
+            type="time"
+            value={receipt.time}
+            onInput={(value) => updateReceipt("time", value)}
+          />
+          <Field
+            label={labels.register}
+            value={receipt.register}
+            onInput={(value) => updateReceipt("register", value)}
+          />
+          <Field
+            label={labels.cashier}
+            value={receipt.cashier}
+            onInput={(value) => updateReceipt("cashier", value)}
+          />
           <label>
             Payment method
             <select
               value={receipt.paymentMethod}
               onInput={(event) =>
-                updateReceipt(
-                  "paymentMethod",
-                  event.currentTarget.value as PaymentMethod,
-                )}
+                updateReceipt("paymentMethod", event.currentTarget.value)}
             >
-              {PAYMENT_OPTIONS.map((option) => (
+              {profile.receipt.paymentMethods.map((option) => (
                 <option key={option} value={option}>{option}</option>
               ))}
             </select>
           </label>
-          {receipt.paymentMethod === "Contant" && (
+          {isCash && (
             <label>
-              Cash received ({receipt.currency})
+              {labels.received} ({fmt.currency})
               <input
                 type="number"
                 min="0"
@@ -473,41 +243,43 @@ export default function ReceiptGenerator() {
         <div class="party-grid">
           <section class="party-fields">
             <h2>Shop</h2>
-            <ShopField
+            <Field
               label="Shop name"
               value={receipt.shop.name}
               onInput={(value) => updateShop("name", value)}
             />
-            <ShopField
+            <Field
               label="Address"
               value={receipt.shop.address}
               onInput={(value) => updateShop("address", value)}
             />
-            <ShopField
+            <Field
               label="Postal code and city"
               value={receipt.shop.postalCity}
               onInput={(value) => updateShop("postalCity", value)}
             />
-            <ShopField
+            <Field
               label="Phone"
               value={receipt.shop.phone}
               onInput={(value) => updateShop("phone", value)}
             />
-            <ShopField
+            <Field
               label="Website"
               value={receipt.shop.website}
               onInput={(value) => updateShop("website", value)}
             />
-            <ShopField
-              label="KvK"
-              value={receipt.shop.kvk}
-              onInput={(value) => updateShop("kvk", value)}
-            />
-            <ShopField
-              label="VAT number"
+            <Field
+              label={labels.shopTaxId}
               value={receipt.shop.taxId}
               onInput={(value) => updateShop("taxId", value)}
             />
+            {labels.shopRegistration && (
+              <Field
+                label={labels.shopRegistration}
+                value={receipt.shop.registrationId}
+                onInput={(value) => updateShop("registrationId", value)}
+              />
+            )}
           </section>
         </div>
 
@@ -522,8 +294,12 @@ export default function ReceiptGenerator() {
             <div class="line-editor-head">
               <span>Description</span>
               <span>Qty</span>
-              <span>Price incl. ({receipt.currency})</span>
-              <span>VAT</span>
+              <span>
+                Price {profile.receipt.pricesIncludeTax ? "incl." : "excl."}
+                {" "}
+                ({fmt.currency})
+              </span>
+              <span>{profile.taxName}</span>
               <span></span>
             </div>
             {receipt.items.map((item) => (
@@ -552,7 +328,7 @@ export default function ReceiptGenerator() {
                     )}
                 />
                 <input
-                  aria-label="Price including VAT"
+                  aria-label="Price"
                   type="number"
                   min="0"
                   step="0.01"
@@ -565,16 +341,12 @@ export default function ReceiptGenerator() {
                     )}
                 />
                 <select
-                  aria-label="VAT"
-                  value={item.vatRate}
+                  aria-label={profile.taxName}
+                  value={item.taxCode}
                   onInput={(event) =>
-                    updateItem(
-                      item.id,
-                      "vatRate",
-                      event.currentTarget.value as VatRate,
-                    )}
+                    updateItem(item.id, "taxCode", event.currentTarget.value)}
                 >
-                  {VAT_OPTIONS.map((option) => (
+                  {profile.taxOptions.map((option) => (
                     <option key={option.value} value={option.value}>
                       {option.label}
                     </option>
@@ -608,7 +380,12 @@ export default function ReceiptGenerator() {
       </section>
 
       <section class="preview-panel" aria-label="Receipt preview">
-        <ReceiptPaper receipt={receipt} totals={totals} />
+        <ReceiptPaper
+          receipt={receipt}
+          totals={totals}
+          profile={profile}
+          fmt={fmt}
+        />
       </section>
 
       {previewOpen && (
@@ -627,7 +404,12 @@ export default function ReceiptGenerator() {
             </button>
           </div>
           <div class="modal-paper-wrap">
-            <ReceiptPaper receipt={receipt} totals={totals} />
+            <ReceiptPaper
+              receipt={receipt}
+              totals={totals}
+              profile={profile}
+              fmt={fmt}
+            />
           </div>
         </div>
       )}
@@ -635,13 +417,19 @@ export default function ReceiptGenerator() {
   );
 }
 
-function ShopField(
-  props: { label: string; value: string; onInput: (value: string) => void },
+function Field(
+  props: {
+    label: string;
+    value: string;
+    type?: string;
+    onInput: (value: string) => void;
+  },
 ) {
   return (
     <label>
       {props.label}
       <input
+        type={props.type ?? "text"}
         value={props.value}
         onInput={(event) => props.onInput(event.currentTarget.value)}
       />
@@ -649,16 +437,27 @@ function ShopField(
   );
 }
 
-function ReceiptPaper(
-  props: {
-    receipt: ReceiptState;
-    totals: ReturnType<typeof calculateReceiptTotals>;
-  },
-) {
-  const { receipt, totals } = props;
-  const { currency, shop } = receipt;
-  const isCash = receipt.paymentMethod === "Contant";
+// The marker printed after a receipt line: the country's tax letter (HU), or
+// "T" for taxable items where tax is added at the bottom (US).
+function lineMarker(option: TaxOption, profile: CountryProfile) {
+  if (option.receiptCode) return option.receiptCode;
+  if (!profile.receipt.pricesIncludeTax && !option.exempt) return "T";
+  return "";
+}
+
+type PaperProps = {
+  receipt: ReceiptState;
+  totals: ReturnType<typeof calculateReceiptTotals>;
+  profile: CountryProfile;
+  fmt: Formatters;
+};
+
+function ReceiptPaper({ receipt, totals, profile, fmt }: PaperProps) {
+  const labels = profile.receipt.labels;
+  const { shop } = receipt;
+  const isCash = receipt.paymentMethod === profile.receipt.cashMethod;
   const change = Math.max(0, receipt.cashReceived - totals.total);
+  const includesTax = profile.receipt.pricesIncludeTax;
 
   return (
     <article class="receipt-paper">
@@ -673,31 +472,41 @@ function ReceiptPaper(
         <h2>{shop.name}</h2>
         <p>{shop.address}</p>
         <p>{shop.postalCity}</p>
-        <p>{[shop.phone, shop.website].filter(Boolean).join(" | ")}</p>
-        <p>KvK {shop.kvk} | Btw {shop.taxId}</p>
+        {(shop.phone || shop.website) && (
+          <p>{[shop.phone, shop.website].filter(Boolean).join(" | ")}</p>
+        )}
+        <p>
+          {[
+            labels.shopRegistration && shop.registrationId
+              ? `${labels.shopRegistration} ${shop.registrationId}`
+              : "",
+            `${labels.shopTaxId} ${shop.taxId}`,
+          ].filter(Boolean).join(" | ")}
+        </p>
+        <p class="receipt-doc-title">{profile.receipt.title}</p>
       </header>
 
       <hr class="receipt-divider" />
 
       <dl class="receipt-meta">
         <div>
-          <dt>Bon</dt>
+          <dt>{labels.number}</dt>
           <dd>{receipt.receiptNumber || "-"}</dd>
         </div>
         <div>
-          <dt>Kassa</dt>
+          <dt>{labels.register}</dt>
           <dd>{receipt.register || "-"}</dd>
         </div>
         <div>
-          <dt>Datum</dt>
-          <dd>{formatDate(receipt.date) || "-"}</dd>
+          <dt>{labels.date}</dt>
+          <dd>{fmt.date(receipt.date) || "-"}</dd>
         </div>
         <div>
-          <dt>Tijd</dt>
-          <dd>{receipt.time || "-"}</dd>
+          <dt>{labels.time}</dt>
+          <dd>{fmt.time(receipt.time) || "-"}</dd>
         </div>
         <div>
-          <dt>Medewerker</dt>
+          <dt>{labels.cashier}</dt>
           <dd>{receipt.cashier || "-"}</dd>
         </div>
       </dl>
@@ -705,106 +514,143 @@ function ReceiptPaper(
       <hr class="receipt-divider" />
 
       <ul class="receipt-lines">
-        {receipt.items.map((item) => (
-          <li class="receipt-line" key={item.id}>
-            <span>
-              {item.description}
-              {item.quantity !== 1 && (
-                <small>
-                  {formatQuantity(item.quantity)} x{" "}
-                  {formatAmount(item.unitPrice, currency)}
-                </small>
-              )}
-            </span>
-            <span>
-              {formatAmount(item.quantity * item.unitPrice, currency)}
-            </span>
-          </li>
-        ))}
+        {receipt.items.map((item) => {
+          const marker = lineMarker(taxOption(profile, item.taxCode), profile);
+          return (
+            <li class="receipt-line" key={item.id}>
+              <span>
+                {item.description}
+                {item.quantity !== 1 && (
+                  <small>
+                    {fmt.quantity(item.quantity)} x {fmt.amount(item.unitPrice)}
+                  </small>
+                )}
+              </span>
+              <span>
+                {fmt.amount(item.quantity * item.unitPrice)}
+                {marker && <em class="receipt-marker">{marker}</em>}
+              </span>
+            </li>
+          );
+        })}
       </ul>
 
       <hr class="receipt-divider" />
 
+      {!includesTax && (
+        <>
+          <div class="receipt-line">
+            <span>{labels.subtotal}</span>
+            <span>{fmt.amount(totals.subtotal)}</span>
+          </div>
+          {totals.rows.filter((row) => row.tax > 0).map((row) => (
+            <div class="receipt-line" key={row.code}>
+              <span>{profile.taxName} {row.label}</span>
+              <span>{fmt.amount(row.tax)}</span>
+            </div>
+          ))}
+        </>
+      )}
       <div class="receipt-total">
-        <span>Totaal</span>
-        <span>{formatMoney(totals.total, currency)}</span>
+        <span>{labels.total}</span>
+        <span>{fmt.money(totals.total)}</span>
       </div>
       <div class="receipt-line">
-        <span>Betaald met {receipt.paymentMethod}</span>
-        <span>{formatMoney(totals.total, currency)}</span>
+        <span>{labels.paidWith} {receipt.paymentMethod}</span>
+        <span>{fmt.money(totals.total)}</span>
       </div>
       {isCash && (
         <>
           <div class="receipt-line">
-            <span>Ontvangen</span>
-            <span>{formatMoney(receipt.cashReceived, currency)}</span>
+            <span>{labels.received}</span>
+            <span>{fmt.money(receipt.cashReceived)}</span>
           </div>
           <div class="receipt-line">
-            <span>Wisselgeld</span>
-            <span>{formatMoney(change, currency)}</span>
+            <span>{labels.change}</span>
+            <span>{fmt.money(change)}</span>
           </div>
+        </>
+      )}
+
+      {includesTax && (
+        <>
+          <hr class="receipt-divider" />
+          <p class="receipt-section-title">{labels.taxSummary}</p>
+          <table class="receipt-vat">
+            <thead>
+              <tr>
+                <th>{labels.rate}</th>
+                <th>{labels.net}</th>
+                <th>{labels.tax}</th>
+                <th>{labels.gross}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {totals.rows.map((row) => (
+                <tr key={row.code}>
+                  <td>
+                    {row.receiptCode ? `${row.receiptCode} ` : ""}
+                    {row.label}
+                  </td>
+                  <td>{fmt.amount(row.net)}</td>
+                  <td>{fmt.amount(row.tax)}</td>
+                  <td>{fmt.amount(row.gross)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </>
       )}
 
       <hr class="receipt-divider" />
 
-      <table class="receipt-vat">
-        <thead>
-          <tr>
-            <th>Btw</th>
-            <th>Netto</th>
-            <th>Btw</th>
-            <th>Bruto</th>
-          </tr>
-        </thead>
-        <tbody>
-          {totals.vatRows.map((row) => (
-            <tr key={row.rate}>
-              <td>{row.label}</td>
-              <td>{formatAmount(row.net, currency)}</td>
-              <td>{formatAmount(row.vat, currency)}</td>
-              <td>{formatAmount(row.gross, currency)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-
-      <hr class="receipt-divider" />
-
       <footer class="receipt-foot">
         <p>{receipt.footerMessage}</p>
-        <p>Prijzen inclusief btw</p>
+        {profile.receipt.footerLines.map((value) => <p key={value}>{value}</p>)}
+        <p>{labels.pricesNote}</p>
       </footer>
     </article>
   );
 }
 
-export function calculateReceiptTotals(items: ReceiptItem[]) {
+export function calculateReceiptTotals(
+  items: ReceiptItem[],
+  profile: CountryProfile,
+) {
+  const includesTax = profile.receipt.pricesIncludeTax;
   const buckets = new Map<
-    VatRate,
-    { gross: number; net: number; vat: number }
+    string,
+    { gross: number; net: number; tax: number }
   >();
+  let subtotal = 0;
   let total = 0;
 
   for (const item of items) {
-    const gross = item.quantity * item.unitPrice;
-    const net = gross / (1 + vatFactor(item.vatRate));
+    const option = taxOption(profile, item.taxCode);
+    const price = item.quantity * item.unitPrice;
+    const net = includesTax ? price / (1 + option.rate) : price;
+    const gross = includesTax ? price : price * (1 + option.rate);
+    subtotal += net;
     total += gross;
-    const bucket = buckets.get(item.vatRate) ?? { gross: 0, net: 0, vat: 0 };
+    const bucket = buckets.get(option.value) ?? { gross: 0, net: 0, tax: 0 };
     bucket.gross += gross;
     bucket.net += net;
-    bucket.vat += gross - net;
-    buckets.set(item.vatRate, bucket);
+    bucket.tax += gross - net;
+    buckets.set(option.value, bucket);
   }
 
-  const order = (rate: VatRate) => rate === "exempt" ? -1 : Number(rate);
-  const vatRows = Array.from(buckets.entries())
-    .filter(([, bucket]) => bucket.gross > 0)
-    .sort(([a], [b]) => order(b) - order(a))
-    .map(([rate, bucket]) => ({ rate, label: vatLabel(rate), ...bucket }));
-  const vatTotal = vatRows.reduce((sum, row) => sum + row.vat, 0);
+  const rows = profile.taxOptions
+    .filter((option) => buckets.has(option.value))
+    .map((option) => ({
+      code: option.value,
+      label: option.shortLabel,
+      receiptCode: option.receiptCode,
+      ...buckets.get(option.value)!,
+    }))
+    .filter((row) => row.gross > 0);
+  const taxTotal = rows.reduce((sum, row) => sum + row.tax, 0);
 
-  return { total, vatTotal, net: total - vatTotal, vatRows };
+  return { subtotal, taxTotal, total, rows };
 }
 
 // Approximate Helvetica advance widths, enough to right-align and centre text.
@@ -825,13 +671,17 @@ export function buildReceiptPdf(
   receipt: ReceiptState,
   totals: ReturnType<typeof calculateReceiptTotals>,
 ) {
+  const profile = COUNTRIES[receipt.country];
+  const labels = profile.receipt.labels;
+  const fmt = createFormatters(profile.format);
+  const includesTax = profile.receipt.pricesIncludeTax;
+
   // 80 mm thermal roll, with the page height following the content.
   const WIDTH = 227;
   const MARGIN = 12;
   const RIGHT = WIDTH - MARGIN;
   const MIN_HEIGHT = 200;
 
-  const { currency } = receipt;
   const logoImage = parseJpegDataUrl(receipt.logoDataUrl);
   const ops: Array<(height: number) => string> = [];
   let cursor = MARGIN + 8;
@@ -877,91 +727,111 @@ export function buildReceiptPdf(
     cursor += box.height + 10;
   }
 
-  centeredText(11, receipt.shop.name, "F2");
+  const { shop } = receipt;
+  centeredText(11, shop.name, "F2");
   cursor += 14;
   [
-    receipt.shop.address,
-    receipt.shop.postalCity,
-    [receipt.shop.phone, receipt.shop.website].filter(Boolean).join(" | "),
-    `KvK ${receipt.shop.kvk} | Btw ${receipt.shop.taxId}`,
+    shop.address,
+    shop.postalCity,
+    [shop.phone, shop.website].filter(Boolean).join(" | "),
+    [
+      labels.shopRegistration && shop.registrationId
+        ? `${labels.shopRegistration} ${shop.registrationId}`
+        : "",
+      `${labels.shopTaxId} ${shop.taxId}`,
+    ].filter(Boolean).join(" | "),
   ].filter(Boolean).forEach((value) => {
     centeredText(8, value);
     cursor += 11;
   });
+  cursor += 2;
+  centeredText(9, profile.receipt.title.toUpperCase(), "F2");
+  cursor += 12;
 
   dashed();
-  text(MARGIN, 8, `Bon: ${receipt.receiptNumber}`);
-  text(130, 8, `Kassa: ${receipt.register}`);
+  text(MARGIN, 8, `${labels.number}: ${receipt.receiptNumber}`);
+  text(125, 8, `${labels.register}: ${receipt.register}`);
   cursor += 11;
-  text(MARGIN, 8, `Datum: ${formatDate(receipt.date)}`);
-  text(130, 8, `Tijd: ${receipt.time}`);
+  text(MARGIN, 8, `${labels.date}: ${fmt.date(receipt.date)}`);
+  text(125, 8, `${labels.time}: ${fmt.time(receipt.time)}`);
   cursor += 11;
-  text(MARGIN, 8, `Medewerker: ${receipt.cashier}`);
+  text(MARGIN, 8, `${labels.cashier}: ${receipt.cashier}`);
   cursor += 11;
 
   dashed();
   receipt.items.forEach((item) => {
-    row(
-      truncate(item.description, 30),
-      formatAmount(item.quantity * item.unitPrice, currency),
-    );
+    const marker = lineMarker(taxOption(profile, item.taxCode), profile);
+    const amount = fmt.amount(item.quantity * item.unitPrice);
+    text(MARGIN, 8, truncate(item.description, 28));
+    // Keep the amount column aligned by reserving a fixed slot for the marker.
+    text(RIGHT - 10 - approxWidth(amount, 8), 8, amount);
+    if (marker) text(RIGHT - 6, 7, marker);
+    cursor += 11;
     if (item.quantity !== 1) {
       text(
         MARGIN + 8,
         7,
-        `${formatQuantity(item.quantity)} x ${
-          formatAmount(item.unitPrice, currency)
-        }`,
+        `${fmt.quantity(item.quantity)} x ${fmt.amount(item.unitPrice)}`,
       );
       cursor += 10;
     }
   });
 
   dashed();
-  row("TOTAAL", formatMoneyPdf(totals.total, currency), 10, "F2");
+  if (!includesTax) {
+    row(labels.subtotal, fmt.amount(totals.subtotal));
+    totals.rows.filter((tax) => tax.tax > 0).forEach((tax) => {
+      row(`${profile.taxName} ${tax.label}`, fmt.amount(tax.tax));
+    });
+    cursor += 2;
+  }
+  row(labels.total, fmt.moneyPdf(totals.total), 10, "F2");
   cursor += 2;
   row(
-    `Betaald met ${receipt.paymentMethod}`,
-    formatMoneyPdf(totals.total, currency),
+    `${labels.paidWith} ${receipt.paymentMethod}`,
+    fmt.moneyPdf(totals.total),
   );
-  if (receipt.paymentMethod === "Contant") {
-    row("Ontvangen", formatMoneyPdf(receipt.cashReceived, currency));
+  if (receipt.paymentMethod === profile.receipt.cashMethod) {
+    row(labels.received, fmt.moneyPdf(receipt.cashReceived));
     row(
-      "Wisselgeld",
-      formatMoneyPdf(
-        Math.max(0, receipt.cashReceived - totals.total),
-        currency,
-      ),
+      labels.change,
+      fmt.moneyPdf(Math.max(0, receipt.cashReceived - totals.total)),
     );
   }
 
-  dashed();
-  text(MARGIN, 8, "Btw-overzicht", "F2");
-  cursor += 12;
-  const columns = [105, 160, RIGHT];
-  const vatRow = (cells: string[], font = "F1") => {
-    text(MARGIN, 7, cells[0], font);
-    cells.slice(1).forEach((cell, index) => {
-      text(columns[index] - approxWidth(cell, 7), 7, cell, font);
+  if (includesTax) {
+    dashed();
+    text(MARGIN, 8, labels.taxSummary, "F2");
+    cursor += 12;
+    const columns = [105, 160, RIGHT];
+    const taxRow = (cells: string[], font = "F1") => {
+      text(MARGIN, 7, cells[0], font);
+      cells.slice(1).forEach((cell, index) => {
+        text(columns[index] - approxWidth(cell, 7), 7, cell, font);
+      });
+      cursor += 10;
+    };
+    taxRow([labels.rate, labels.net, labels.tax, labels.gross], "F2");
+    totals.rows.forEach((tax) => {
+      taxRow([
+        `${tax.receiptCode ? `${tax.receiptCode} ` : ""}${tax.label}`,
+        fmt.amount(tax.net),
+        fmt.amount(tax.tax),
+        fmt.amount(tax.gross),
+      ]);
     });
-    cursor += 10;
-  };
-  vatRow(["Tarief", "Netto", "Btw", "Bruto"], "F2");
-  totals.vatRows.forEach((vat) => {
-    vatRow([
-      vat.label,
-      formatAmount(vat.net, currency),
-      formatAmount(vat.vat, currency),
-      formatAmount(vat.gross, currency),
-    ]);
-  });
+  }
 
   dashed();
   wrapText(receipt.footerMessage, 44, 6).forEach((part) => {
     centeredText(8, part);
     cursor += 11;
   });
-  centeredText(7, "Prijzen inclusief btw");
+  profile.receipt.footerLines.forEach((value) => {
+    centeredText(8, value);
+    cursor += 11;
+  });
+  centeredText(7, labels.pricesNote);
   cursor += 10;
 
   const height = Math.max(MIN_HEIGHT, cursor + MARGIN);
