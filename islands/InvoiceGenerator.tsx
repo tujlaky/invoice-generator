@@ -2,6 +2,39 @@ import { useMemo, useState } from "preact/hooks";
 
 type VatRate = "21" | "9" | "0" | "exempt";
 
+type CurrencyCode =
+  | "EUR"
+  | "USD"
+  | "JPY"
+  | "BGN"
+  | "CZK"
+  | "DKK"
+  | "GBP"
+  | "HUF"
+  | "PLN"
+  | "RON"
+  | "SEK"
+  | "CHF"
+  | "ISK"
+  | "NOK"
+  | "TRY"
+  | "AUD"
+  | "BRL"
+  | "CAD"
+  | "CNY"
+  | "HKD"
+  | "IDR"
+  | "ILS"
+  | "INR"
+  | "KRW"
+  | "MXN"
+  | "MYR"
+  | "NZD"
+  | "PHP"
+  | "SGD"
+  | "THB"
+  | "ZAR";
+
 type LineItem = {
   id: number;
   description: string;
@@ -20,6 +53,7 @@ type Party = {
 };
 
 type InvoiceState = {
+  currency: CurrencyCode;
   invoiceNumber: string;
   invoiceDate: string;
   dueDate: string;
@@ -40,6 +74,41 @@ const VAT_OPTIONS: Array<{ value: VatRate; label: string }> = [
   { value: "9", label: "9% VAT" },
   { value: "0", label: "0% VAT" },
   { value: "exempt", label: "Exempt" },
+];
+
+// ECB euro foreign exchange reference currencies, plus INR, BRL and ZAR.
+const CURRENCY_OPTIONS: Array<{ value: CurrencyCode; label: string }> = [
+  { value: "EUR", label: "EUR - Euro" },
+  { value: "USD", label: "USD - US dollar" },
+  { value: "GBP", label: "GBP - Pound sterling" },
+  { value: "CHF", label: "CHF - Swiss franc" },
+  { value: "JPY", label: "JPY - Japanese yen" },
+  { value: "AUD", label: "AUD - Australian dollar" },
+  { value: "BGN", label: "BGN - Bulgarian lev" },
+  { value: "BRL", label: "BRL - Brazilian real" },
+  { value: "CAD", label: "CAD - Canadian dollar" },
+  { value: "CNY", label: "CNY - Chinese yuan renminbi" },
+  { value: "CZK", label: "CZK - Czech koruna" },
+  { value: "DKK", label: "DKK - Danish krone" },
+  { value: "HKD", label: "HKD - Hong Kong dollar" },
+  { value: "HUF", label: "HUF - Hungarian forint" },
+  { value: "IDR", label: "IDR - Indonesian rupiah" },
+  { value: "ILS", label: "ILS - Israeli shekel" },
+  { value: "INR", label: "INR - Indian rupee" },
+  { value: "ISK", label: "ISK - Icelandic krona" },
+  { value: "KRW", label: "KRW - South Korean won" },
+  { value: "MXN", label: "MXN - Mexican peso" },
+  { value: "MYR", label: "MYR - Malaysian ringgit" },
+  { value: "NOK", label: "NOK - Norwegian krone" },
+  { value: "NZD", label: "NZD - New Zealand dollar" },
+  { value: "PHP", label: "PHP - Philippine peso" },
+  { value: "PLN", label: "PLN - Polish zloty" },
+  { value: "RON", label: "RON - Romanian leu" },
+  { value: "SEK", label: "SEK - Swedish krona" },
+  { value: "SGD", label: "SGD - Singapore dollar" },
+  { value: "THB", label: "THB - Thai baht" },
+  { value: "TRY", label: "TRY - Turkish lira" },
+  { value: "ZAR", label: "ZAR - South African rand" },
 ];
 
 const DEMO_ITEMS: Array<Omit<LineItem, "id">> = [
@@ -270,6 +339,7 @@ const defaultDueDate = new Date(today);
 defaultDueDate.setDate(defaultDueDate.getDate() + 14);
 
 const initialInvoice: InvoiceState = {
+  currency: "EUR",
   invoiceNumber: "2026-001",
   invoiceDate: toInputDate(today),
   dueDate: toInputDate(defaultDueDate),
@@ -451,6 +521,23 @@ export default function InvoiceGenerator() {
 
         <div class="form-grid">
           <label>
+            Currency
+            <select
+              value={invoice.currency}
+              onInput={(event) =>
+                updateInvoice(
+                  "currency",
+                  event.currentTarget.value as CurrencyCode,
+                )}
+            >
+              {CURRENCY_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
             Invoice number
             <input
               value={invoice.invoiceNumber}
@@ -522,7 +609,7 @@ export default function InvoiceGenerator() {
             <div class="line-editor-head">
               <span>Description</span>
               <span>Qty</span>
-              <span>Price</span>
+              <span>Price ({invoice.currency})</span>
               <span>VAT</span>
               <span></span>
             </div>
@@ -771,9 +858,9 @@ function InvoicePaper(
             <div class="invoice-table-row" key={item.id}>
               <span>{item.description}</span>
               <span>{formatQuantity(item.quantity)}</span>
-              <span>{formatMoney(item.unitPrice)}</span>
+              <span>{formatMoney(item.unitPrice, invoice.currency)}</span>
               <span>{vatLabel(item.vatRate)}</span>
-              <span>{formatMoney(lineNet)}</span>
+              <span>{formatMoney(lineNet, invoice.currency)}</span>
             </div>
           );
         })}
@@ -786,23 +873,26 @@ function InvoicePaper(
           <p class="bank-line">IBAN: {invoice.seller.iban}</p>
         </div>
         <div class="totals-box">
-          <TotalRow label="Subtotaal" value={formatMoney(totals.subtotal)} />
+          <TotalRow
+            label="Subtotaal"
+            value={formatMoney(totals.subtotal, invoice.currency)}
+          />
           {totals.vatRows.map((row) => (
             <TotalRow
               key={row.label}
               label={`Btw ${row.label}`}
-              value={formatMoney(row.amount)}
+              value={formatMoney(row.amount, invoice.currency)}
             />
           ))}
           {totals.exemptTotal > 0 && (
             <TotalRow
               label="Vrijgesteld"
-              value={formatMoney(totals.exemptTotal)}
+              value={formatMoney(totals.exemptTotal, invoice.currency)}
             />
           )}
           <div class="grand-total">
             <span>Totaal</span>
-            <strong>{formatMoney(totals.total)}</strong>
+            <strong>{formatMoney(totals.total, invoice.currency)}</strong>
           </div>
         </div>
       </section>
@@ -1007,9 +1097,9 @@ export function buildPdf(
     const lineTotal = item.quantity * item.unitPrice;
     text(60, y, 9, truncate(item.description, 36));
     text(284, y, 9, formatQuantity(item.quantity));
-    text(340, y, 9, formatMoneyPdf(item.unitPrice));
+    text(340, y, 9, formatMoneyPdf(item.unitPrice, invoice.currency));
     text(414, y, 9, vatLabel(item.vatRate));
-    text(474, y, 9, formatMoneyPdf(lineTotal));
+    text(474, y, 9, formatMoneyPdf(lineTotal, invoice.currency));
     line(48, y - 9, 548, y - 9);
     y -= ROW_HEIGHT;
   });
@@ -1028,23 +1118,33 @@ export function buildPdf(
 
   line(320, totalsTop, 548, totalsTop);
   text(330, totalsTop - 24, 10, "Subtotaal");
-  bold(464, totalsTop - 24, 10, formatMoneyPdf(totals.subtotal));
+  bold(
+    464,
+    totalsTop - 24,
+    10,
+    formatMoneyPdf(totals.subtotal, invoice.currency),
+  );
   let totalLineY = totalsTop - 44;
   totals.vatRows.forEach((row) => {
     text(330, totalLineY, 10, `Btw ${row.label}`);
-    bold(464, totalLineY, 10, formatMoneyPdf(row.amount));
+    bold(464, totalLineY, 10, formatMoneyPdf(row.amount, invoice.currency));
     totalLineY -= 18;
   });
   if (totals.exemptTotal > 0) {
     text(330, totalLineY, 10, "Vrijgesteld");
-    bold(464, totalLineY, 10, formatMoneyPdf(totals.exemptTotal));
+    bold(
+      464,
+      totalLineY,
+      10,
+      formatMoneyPdf(totals.exemptTotal, invoice.currency),
+    );
     totalLineY -= 18;
   }
   totalLineY -= 8;
   fillRect(320, totalLineY - 12, 228, 28, 0.18);
   content.push("1 1 1 rg");
   bold(330, totalLineY - 2, 11, "Totaal");
-  bold(454, totalLineY - 2, 11, formatMoneyPdf(totals.total));
+  bold(454, totalLineY - 2, 11, formatMoneyPdf(totals.total, invoice.currency));
   content.push("0 0 0 rg");
 
   const notesTitleY = totalLineY - 12 - 24;
@@ -1179,18 +1279,24 @@ function formatQuantity(value: number) {
   }).format(value);
 }
 
-function formatMoney(value: number) {
+function formatMoney(value: number, currency: CurrencyCode) {
   return new Intl.NumberFormat("nl-NL", {
     style: "currency",
-    currency: "EUR",
+    currency,
   }).format(value);
 }
 
-function formatMoneyPdf(value: number) {
-  return `EUR ${
+// The PDF uses the base Helvetica font, which cannot render most currency
+// symbols, so amounts are prefixed with the ISO code instead.
+function formatMoneyPdf(value: number, currency: CurrencyCode) {
+  const digits = new Intl.NumberFormat("nl-NL", {
+    style: "currency",
+    currency,
+  }).resolvedOptions().maximumFractionDigits;
+  return `${currency} ${
     new Intl.NumberFormat("nl-NL", {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
+      minimumFractionDigits: digits,
+      maximumFractionDigits: digits,
     }).format(value)
   }`;
 }
