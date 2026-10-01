@@ -1,39 +1,20 @@
 import { useMemo, useState } from "preact/hooks";
-
-type VatRate = "21" | "9" | "0" | "exempt";
-
-type CurrencyCode =
-  | "EUR"
-  | "USD"
-  | "JPY"
-  | "BGN"
-  | "CZK"
-  | "DKK"
-  | "GBP"
-  | "HUF"
-  | "PLN"
-  | "RON"
-  | "SEK"
-  | "CHF"
-  | "ISK"
-  | "NOK"
-  | "TRY"
-  | "AUD"
-  | "BRL"
-  | "CAD"
-  | "CNY"
-  | "HKD"
-  | "IDR"
-  | "ILS"
-  | "INR"
-  | "KRW"
-  | "MXN"
-  | "MYR"
-  | "NZD"
-  | "PHP"
-  | "SGD"
-  | "THB"
-  | "ZAR";
+import {
+  CURRENCY_OPTIONS,
+  type CurrencyCode,
+  formatDate,
+  formatMoney,
+  formatMoneyPdf,
+  formatQuantity,
+  toInputDate,
+  toNumber,
+  truncate,
+  VAT_OPTIONS,
+  vatLabel,
+  type VatRate,
+  wrapText,
+} from "@/lib/format.ts";
+import { createPdf, fitImage, parseJpegDataUrl, pdfText } from "@/lib/pdf.ts";
 
 type LineItem = {
   id: number;
@@ -68,48 +49,6 @@ type InvoiceState = {
   notes: string;
   items: LineItem[];
 };
-
-const VAT_OPTIONS: Array<{ value: VatRate; label: string }> = [
-  { value: "21", label: "21% VAT" },
-  { value: "9", label: "9% VAT" },
-  { value: "0", label: "0% VAT" },
-  { value: "exempt", label: "Exempt" },
-];
-
-// ECB euro foreign exchange reference currencies, plus INR, BRL and ZAR.
-const CURRENCY_OPTIONS: Array<{ value: CurrencyCode; label: string }> = [
-  { value: "EUR", label: "EUR - Euro" },
-  { value: "USD", label: "USD - US dollar" },
-  { value: "GBP", label: "GBP - Pound sterling" },
-  { value: "CHF", label: "CHF - Swiss franc" },
-  { value: "JPY", label: "JPY - Japanese yen" },
-  { value: "AUD", label: "AUD - Australian dollar" },
-  { value: "BGN", label: "BGN - Bulgarian lev" },
-  { value: "BRL", label: "BRL - Brazilian real" },
-  { value: "CAD", label: "CAD - Canadian dollar" },
-  { value: "CNY", label: "CNY - Chinese yuan renminbi" },
-  { value: "CZK", label: "CZK - Czech koruna" },
-  { value: "DKK", label: "DKK - Danish krone" },
-  { value: "HKD", label: "HKD - Hong Kong dollar" },
-  { value: "HUF", label: "HUF - Hungarian forint" },
-  { value: "IDR", label: "IDR - Indonesian rupiah" },
-  { value: "ILS", label: "ILS - Israeli shekel" },
-  { value: "INR", label: "INR - Indian rupee" },
-  { value: "ISK", label: "ISK - Icelandic krona" },
-  { value: "KRW", label: "KRW - South Korean won" },
-  { value: "MXN", label: "MXN - Mexican peso" },
-  { value: "MYR", label: "MYR - Malaysian ringgit" },
-  { value: "NOK", label: "NOK - Norwegian krone" },
-  { value: "NZD", label: "NZD - New Zealand dollar" },
-  { value: "PHP", label: "PHP - Philippine peso" },
-  { value: "PLN", label: "PLN - Polish zloty" },
-  { value: "RON", label: "RON - Romanian leu" },
-  { value: "SEK", label: "SEK - Swedish krona" },
-  { value: "SGD", label: "SGD - Singapore dollar" },
-  { value: "THB", label: "THB - Thai baht" },
-  { value: "TRY", label: "TRY - Turkish lira" },
-  { value: "ZAR", label: "ZAR - South African rand" },
-];
 
 const DEMO_ITEMS: Array<Omit<LineItem, "id">> = [
   {
@@ -470,6 +409,10 @@ export default function InvoiceGenerator() {
     <main class="invoice-app">
       <section class="editor-panel" aria-label="Invoice details">
         <div class="panel-header">
+          <nav class="app-nav" aria-label="Pages">
+            <a href="/" aria-current="page">Invoice</a>
+            <a href="/receipts">Receipt</a>
+          </nav>
           <div>
             <p class="eyebrow">Dutch invoice</p>
             <h1>Invoice generator</h1>
@@ -1165,252 +1108,4 @@ export function buildPdf(
     pages.map((pageContent) => pageContent.join("\n")),
     logoImage,
   );
-}
-
-function createPdf(pageStreams: string[], logoImage?: PdfJpeg | null) {
-  const encoder = new TextEncoder();
-  const objects: Uint8Array<ArrayBuffer>[] = [];
-  const addObject = (bytes: Uint8Array<ArrayBuffer>) => {
-    objects.push(bytes);
-    return objects.length;
-  };
-
-  // Objects 1 and 2 are the catalog and page tree; they are filled in once
-  // every page object has been assigned a number.
-  addObject(new Uint8Array());
-  addObject(new Uint8Array());
-  const regularFontId = addObject(
-    encoder.encode("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>"),
-  );
-  const boldFontId = addObject(
-    encoder.encode(
-      "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>",
-    ),
-  );
-
-  let logoId: number | null = null;
-  if (logoImage) {
-    logoId = addObject(
-      concatBytes([
-        encoder.encode(
-          `<< /Type /XObject /Subtype /Image /Width ${logoImage.width} /Height ${logoImage.height} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${logoImage.bytes.length} >>\nstream\n`,
-        ),
-        logoImage.bytes,
-        encoder.encode("\nendstream"),
-      ]),
-    );
-  }
-
-  const fonts = `/Font << /F1 ${regularFontId} 0 R /F2 ${boldFontId} 0 R >>`;
-  const pageResources = logoId
-    ? `/Resources << ${fonts} /XObject << /Logo ${logoId} 0 R >> >>`
-    : `/Resources << ${fonts} >>`;
-
-  const pageIds = pageStreams.map((stream) => {
-    const streamBytes = encoder.encode(stream);
-    const contentId = addObject(
-      concatBytes([
-        encoder.encode(`<< /Length ${streamBytes.length} >>\nstream\n`),
-        streamBytes,
-        encoder.encode("\nendstream"),
-      ]),
-    );
-    return addObject(
-      encoder.encode(
-        `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] ${pageResources} /Contents ${contentId} 0 R >>`,
-      ),
-    );
-  });
-
-  objects[0] = encoder.encode("<< /Type /Catalog /Pages 2 0 R >>");
-  objects[1] = encoder.encode(
-    `<< /Type /Pages /Kids [${
-      pageIds.map((id) => `${id} 0 R`).join(" ")
-    }] /Count ${pageIds.length} >>`,
-  );
-
-  const chunks = [encoder.encode("%PDF-1.4\n")];
-  let byteOffset = chunks[0].length;
-  const offsets: number[] = [0];
-
-  objects.forEach((object, index) => {
-    const prefix = encoder.encode(`${index + 1} 0 obj\n`);
-    const suffix = encoder.encode("\nendobj\n");
-    offsets.push(byteOffset);
-    chunks.push(prefix, object, suffix);
-    byteOffset += prefix.length + object.length + suffix.length;
-  });
-
-  const xrefOffset = byteOffset;
-  let xref = `xref\n0 ${objects.length + 1}\n`;
-  xref += "0000000000 65535 f \n";
-  offsets.slice(1).forEach((offset) => {
-    xref += `${String(offset).padStart(10, "0")} 00000 n \n`;
-  });
-  xref += `trailer\n<< /Size ${
-    objects.length + 1
-  } /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`;
-  chunks.push(encoder.encode(xref));
-
-  return concatBytes(chunks);
-}
-
-function toInputDate(date: Date) {
-  return date.toISOString().slice(0, 10);
-}
-
-function toNumber(value: string) {
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : 0;
-}
-
-function vatLabel(rate: VatRate) {
-  return rate === "exempt" ? "Vrijgesteld" : `${rate}%`;
-}
-
-function formatDate(value: string) {
-  if (!value) return "";
-  return new Intl.DateTimeFormat("nl-NL").format(new Date(`${value}T00:00:00`));
-}
-
-function formatQuantity(value: number) {
-  return new Intl.NumberFormat("nl-NL", {
-    maximumFractionDigits: 2,
-  }).format(value);
-}
-
-function formatMoney(value: number, currency: CurrencyCode) {
-  return new Intl.NumberFormat("nl-NL", {
-    style: "currency",
-    currency,
-  }).format(value);
-}
-
-// The PDF uses the base Helvetica font, which cannot render most currency
-// symbols, so amounts are prefixed with the ISO code instead.
-function formatMoneyPdf(value: number, currency: CurrencyCode) {
-  const digits = new Intl.NumberFormat("nl-NL", {
-    style: "currency",
-    currency,
-  }).resolvedOptions().maximumFractionDigits;
-  return `${currency} ${
-    new Intl.NumberFormat("nl-NL", {
-      minimumFractionDigits: digits,
-      maximumFractionDigits: digits,
-    }).format(value)
-  }`;
-}
-
-type PdfJpeg = {
-  bytes: Uint8Array;
-  width: number;
-  height: number;
-};
-
-function parseJpegDataUrl(value: string): PdfJpeg | null {
-  const match = value.match(/^data:image\/jpe?g;base64,(.+)$/);
-  if (!match) return null;
-
-  const bytes = base64ToBytes(match[1]);
-  const size = getJpegSize(bytes);
-  if (!size) return null;
-
-  return { bytes, ...size };
-}
-
-function base64ToBytes(value: string) {
-  const binary = atob(value);
-  const bytes = new Uint8Array(binary.length);
-  for (let index = 0; index < binary.length; index += 1) {
-    bytes[index] = binary.charCodeAt(index);
-  }
-  return bytes;
-}
-
-function getJpegSize(bytes: Uint8Array) {
-  let index = 2;
-
-  while (index < bytes.length) {
-    if (bytes[index] !== 0xff) return null;
-
-    const marker = bytes[index + 1];
-    const length = (bytes[index + 2] << 8) + bytes[index + 3];
-    if (
-      marker === 0xc0 || marker === 0xc1 || marker === 0xc2 ||
-      marker === 0xc3
-    ) {
-      return {
-        height: (bytes[index + 5] << 8) + bytes[index + 6],
-        width: (bytes[index + 7] << 8) + bytes[index + 8],
-      };
-    }
-
-    index += 2 + length;
-  }
-
-  return null;
-}
-
-function fitImage(
-  width: number,
-  height: number,
-  maxWidth: number,
-  maxHeight: number,
-) {
-  const scale = Math.min(maxWidth / width, maxHeight / height);
-  return {
-    width: width * scale,
-    height: height * scale,
-  };
-}
-
-function concatBytes(chunks: Uint8Array[]) {
-  const totalLength = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
-  const result = new Uint8Array(totalLength);
-  let offset = 0;
-
-  chunks.forEach((chunk) => {
-    result.set(chunk, offset);
-    offset += chunk.length;
-  });
-
-  return result;
-}
-
-function pdfText(value: string) {
-  const safeValue = value
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^\x20-\x7E]/g, "");
-
-  return `(${
-    safeValue
-      .replace(/\\/g, "\\\\")
-      .replace(/\(/g, "\\(")
-      .replace(/\)/g, "\\)")
-  })`;
-}
-
-function wrapText(value: string, maxLength: number) {
-  const words = value.split(/\s+/).filter(Boolean);
-  const lines: string[] = [];
-  let current = "";
-
-  words.forEach((word) => {
-    if ((current + " " + word).trim().length > maxLength) {
-      lines.push(current);
-      current = word;
-    } else {
-      current = `${current} ${word}`.trim();
-    }
-  });
-
-  if (current) lines.push(current);
-  return lines.slice(0, 4);
-}
-
-function truncate(value: string, maxLength: number) {
-  return value.length > maxLength
-    ? `${value.slice(0, maxLength - 3)}...`
-    : value;
 }
