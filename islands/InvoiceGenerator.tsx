@@ -42,6 +42,229 @@ const VAT_OPTIONS: Array<{ value: VatRate; label: string }> = [
   { value: "exempt", label: "Exempt" },
 ];
 
+const DEMO_ITEMS: Array<Omit<LineItem, "id">> = [
+  {
+    description: "Ontwerp en ontwikkeling",
+    quantity: 1,
+    unitPrice: 1250,
+    vatRate: "21",
+  },
+  { description: "Drukwerk", quantity: 2, unitPrice: 85, vatRate: "9" },
+  {
+    description: "Webhosting (per maand)",
+    quantity: 12,
+    unitPrice: 14.95,
+    vatRate: "21",
+  },
+  {
+    description: "Domeinregistratie .nl",
+    quantity: 1,
+    unitPrice: 12.5,
+    vatRate: "21",
+  },
+  { description: "Logo-ontwerp", quantity: 1, unitPrice: 650, vatRate: "21" },
+  {
+    description: "Huisstijlhandboek",
+    quantity: 1,
+    unitPrice: 480,
+    vatRate: "21",
+  },
+  {
+    description: "Visitekaartjes (250 stuks)",
+    quantity: 1,
+    unitPrice: 45,
+    vatRate: "9",
+  },
+  {
+    description: "Flyers A5 (500 stuks)",
+    quantity: 1,
+    unitPrice: 78,
+    vatRate: "9",
+  },
+  {
+    description: "Consultancy (per uur)",
+    quantity: 8,
+    unitPrice: 95,
+    vatRate: "21",
+  },
+  {
+    description: "Projectmanagement (per uur)",
+    quantity: 6,
+    unitPrice: 85,
+    vatRate: "21",
+  },
+  {
+    description: "SEO-optimalisatie",
+    quantity: 1,
+    unitPrice: 375,
+    vatRate: "21",
+  },
+  {
+    description: "Contentschrijven (per pagina)",
+    quantity: 5,
+    unitPrice: 60,
+    vatRate: "21",
+  },
+  {
+    description: "Fotografie op locatie",
+    quantity: 1,
+    unitPrice: 425,
+    vatRate: "21",
+  },
+  {
+    description: "Beeldbewerking (per foto)",
+    quantity: 20,
+    unitPrice: 7.5,
+    vatRate: "21",
+  },
+  {
+    description: "Nieuwsbriefsjabloon",
+    quantity: 1,
+    unitPrice: 290,
+    vatRate: "21",
+  },
+  {
+    description: "Socialmedia-beheer (per maand)",
+    quantity: 3,
+    unitPrice: 350,
+    vatRate: "21",
+  },
+  {
+    description: "Onderhoudscontract website",
+    quantity: 1,
+    unitPrice: 199,
+    vatRate: "21",
+  },
+  {
+    description: "SSL-certificaat (per jaar)",
+    quantity: 1,
+    unitPrice: 49,
+    vatRate: "21",
+  },
+  {
+    description: "Vertaling NL-EN (per woord)",
+    quantity: 1500,
+    unitPrice: 0.12,
+    vatRate: "21",
+  },
+  {
+    description: "Redactie en correctie",
+    quantity: 3,
+    unitPrice: 55,
+    vatRate: "21",
+  },
+  {
+    description: "Boek (paperback)",
+    quantity: 10,
+    unitPrice: 19.95,
+    vatRate: "9",
+  },
+  { description: "E-book", quantity: 25, unitPrice: 9.99, vatRate: "9" },
+  {
+    description: "Tijdschriftabonnement",
+    quantity: 1,
+    unitPrice: 59,
+    vatRate: "9",
+  },
+  {
+    description: "Koffiebonen 1 kg",
+    quantity: 4,
+    unitPrice: 22.5,
+    vatRate: "9",
+  },
+  {
+    description: "Catering lunch (per persoon)",
+    quantity: 12,
+    unitPrice: 14.5,
+    vatRate: "9",
+  },
+  {
+    description: "Bloemen ontvangstbalie",
+    quantity: 2,
+    unitPrice: 35,
+    vatRate: "9",
+  },
+  {
+    description: "Workshop UX-design",
+    quantity: 1,
+    unitPrice: 890,
+    vatRate: "21",
+  },
+  {
+    description: "Training presenteren (dag)",
+    quantity: 1,
+    unitPrice: 1150,
+    vatRate: "21",
+  },
+  {
+    description: "Cursus Nederlands (10 lessen)",
+    quantity: 1,
+    unitPrice: 420,
+    vatRate: "exempt",
+  },
+  {
+    description: "Bijles wiskunde (per uur)",
+    quantity: 6,
+    unitPrice: 45,
+    vatRate: "exempt",
+  },
+  {
+    description: "Fysiotherapie (per behandeling)",
+    quantity: 4,
+    unitPrice: 38,
+    vatRate: "exempt",
+  },
+  {
+    description: "Verzekeringsadvies",
+    quantity: 1,
+    unitPrice: 150,
+    vatRate: "exempt",
+  },
+  {
+    description: "Export levering naar Duitsland",
+    quantity: 1,
+    unitPrice: 2400,
+    vatRate: "0",
+  },
+  {
+    description: "Intracommunautaire dienst",
+    quantity: 1,
+    unitPrice: 1800,
+    vatRate: "0",
+  },
+  {
+    description: "Reiskosten (per km)",
+    quantity: 120,
+    unitPrice: 0.23,
+    vatRate: "21",
+  },
+  { description: "Parkeerkosten", quantity: 3, unitPrice: 12, vatRate: "21" },
+  {
+    description: "Laptopstandaard",
+    quantity: 2,
+    unitPrice: 39.95,
+    vatRate: "21",
+  },
+  {
+    description: "Bureaustoel ergonomisch",
+    quantity: 1,
+    unitPrice: 349,
+    vatRate: "21",
+  },
+  {
+    description: "Softwarelicentie (per jaar)",
+    quantity: 5,
+    unitPrice: 120,
+    vatRate: "21",
+  },
+  {
+    description: "Backupopslag 1 TB (per maand)",
+    quantity: 12,
+    unitPrice: 8.95,
+    vatRate: "21",
+  },
+];
+
 const today = new Date();
 const defaultDueDate = new Date(today);
 defaultDueDate.setDate(defaultDueDate.getDate() + 14);
@@ -128,16 +351,14 @@ export default function InvoiceGenerator() {
   };
 
   const addItem = () => {
+    const demoItem = DEMO_ITEMS[Math.floor(Math.random() * DEMO_ITEMS.length)];
     setInvoice((current) => ({
       ...current,
       items: [
         ...current.items,
         {
-          id: Date.now(),
-          description: "Nieuwe factuurregel",
-          quantity: 1,
-          unitPrice: 0,
-          vatRate: "21",
+          ...demoItem,
+          id: Math.max(0, ...current.items.map((item) => item.id)) + 1,
         },
       ],
     }));
@@ -673,8 +894,18 @@ export function buildPdf(
   invoice: InvoiceState,
   totals: ReturnType<typeof calculateTotals>,
 ) {
-  const content: string[] = [];
+  const PAGE_TOP = 785;
+  const CONTINUATION_TABLE_TOP = 740;
+  const FIRST_PAGE_TABLE_TOP = 559;
+  const ROW_HEIGHT = 28;
+  // Lowest baseline where table rows may be drawn; below this sits the footer.
+  const BODY_BOTTOM = 110;
+  const FOOTER_TOP = 95;
+
   const logoImage = parseJpegDataUrl(invoice.logoDataUrl);
+  const pages: string[][] = [];
+  let content: string[] = [];
+
   const text = (x: number, y: number, size: number, value: string) => {
     content.push(`BT /F1 ${size} Tf ${x} ${y} Td ${pdfText(value)} Tj ET`);
   };
@@ -704,6 +935,35 @@ export function buildPdf(
   ) => {
     content.push(`q ${width} 0 0 ${height} ${x} ${y} cm /${name} Do Q`);
   };
+
+  const startPage = () => {
+    content = [];
+    pages.push(content);
+  };
+
+  const startContinuationPage = () => {
+    startPage();
+    bold(48, PAGE_TOP, 13, `Factuur ${invoice.invoiceNumber}`);
+    text(48, PAGE_TOP - 15, 9, "Vervolg");
+    bold(380, PAGE_TOP, 13, invoice.seller.name);
+    line(48, PAGE_TOP - 27, 548, PAGE_TOP - 27);
+  };
+
+  // Draws the table header with its top edge at `top` and returns the
+  // baseline for the first row beneath it.
+  const drawTableHeader = (top: number) => {
+    fillRect(48, top - 24, 500, 24, 0.18);
+    content.push("1 1 1 rg");
+    bold(60, top - 16, 9, "Omschrijving");
+    bold(280, top - 16, 9, "Aantal");
+    bold(340, top - 16, 9, "Prijs");
+    bold(410, top - 16, 9, "Btw");
+    bold(480, top - 16, 9, "Totaal");
+    content.push("0 0 0 rg");
+    return top - 47;
+  };
+
+  startPage();
 
   if (logoImage) {
     const logoBox = fitImage(logoImage.width, logoImage.height, 132, 46);
@@ -737,17 +997,13 @@ export function buildPdf(
   text(320, 592, 10, `Termijn: ${invoice.paymentTerm}`);
   text(320, 578, 10, `Referentie: ${invoice.reference}`);
 
-  fillRect(48, 535, 500, 24, 0.18);
-  content.push("1 1 1 rg");
-  bold(60, 543, 9, "Omschrijving");
-  bold(280, 543, 9, "Aantal");
-  bold(340, 543, 9, "Prijs");
-  bold(410, 543, 9, "Btw");
-  bold(480, 543, 9, "Totaal");
-  content.push("0 0 0 rg");
+  let y = drawTableHeader(FIRST_PAGE_TABLE_TOP);
 
-  let y = 512;
-  invoice.items.slice(0, 12).forEach((item) => {
+  invoice.items.forEach((item) => {
+    if (y < BODY_BOTTOM) {
+      startContinuationPage();
+      y = drawTableHeader(CONTINUATION_TABLE_TOP);
+    }
     const lineTotal = item.quantity * item.unitPrice;
     text(60, y, 9, truncate(item.description, 36));
     text(284, y, 9, formatQuantity(item.quantity));
@@ -755,18 +1011,25 @@ export function buildPdf(
     text(414, y, 9, vatLabel(item.vatRate));
     text(474, y, 9, formatMoneyPdf(lineTotal));
     line(48, y - 9, 548, y - 9);
-    y -= 28;
+    y -= ROW_HEIGHT;
   });
 
-  if (invoice.items.length > 12) {
-    text(60, y, 9, `${invoice.items.length - 12} extra regels niet getoond`);
+  // Totals and notes are drawn as one block directly under the last row.
+  // If the block does not fit above the footer, it moves to a new page.
+  const noteLines = wrapText(invoice.notes, 68);
+  const totalsRows = totals.vatRows.length + (totals.exemptTotal > 0 ? 1 : 0);
+  const totalsBlockHeight = 24 + 20 + 18 * totalsRows + 8 + 12;
+  const notesBlockHeight = 24 + 19 + Math.max(0, noteLines.length - 1) * 14;
+  let totalsTop = y + 4;
+  if (totalsTop - totalsBlockHeight - notesBlockHeight < FOOTER_TOP) {
+    startContinuationPage();
+    totalsTop = CONTINUATION_TABLE_TOP;
   }
 
-  const totalsY = 190;
-  line(320, totalsY + 82, 548, totalsY + 82);
-  text(330, totalsY + 58, 10, "Subtotaal");
-  bold(464, totalsY + 58, 10, formatMoneyPdf(totals.subtotal));
-  let totalLineY = totalsY + 38;
+  line(320, totalsTop, 548, totalsTop);
+  text(330, totalsTop - 24, 10, "Subtotaal");
+  bold(464, totalsTop - 24, 10, formatMoneyPdf(totals.subtotal));
+  let totalLineY = totalsTop - 44;
   totals.vatRows.forEach((row) => {
     text(330, totalLineY, 10, `Btw ${row.label}`);
     bold(464, totalLineY, 10, formatMoneyPdf(row.amount));
@@ -784,41 +1047,50 @@ export function buildPdf(
   bold(454, totalLineY - 2, 11, formatMoneyPdf(totals.total));
   content.push("0 0 0 rg");
 
-  bold(48, 145, 10, "Notitie");
-  wrapText(invoice.notes, 68).forEach((part, index) => {
-    text(48, 126 - index * 14, 9, part);
+  const notesTitleY = totalLineY - 12 - 24;
+  bold(48, notesTitleY, 10, "Notitie");
+  noteLines.forEach((part, index) => {
+    text(48, notesTitleY - 19 - index * 14, 9, part);
   });
-  text(48, 74, 9, `IBAN: ${invoice.seller.iban}`);
-  text(48, 48, 8, `${invoice.seller.name} | ${invoice.seller.email}`);
 
-  return createPdf(content.join("\n"), logoImage);
+  const pageCount = pages.length;
+  pages.forEach((pageContent, index) => {
+    content = pageContent;
+    text(48, 74, 9, `IBAN: ${invoice.seller.iban}`);
+    text(48, 48, 8, `${invoice.seller.name} | ${invoice.seller.email}`);
+    text(470, 48, 8, `Pagina ${index + 1} van ${pageCount}`);
+  });
+
+  return createPdf(
+    pages.map((pageContent) => pageContent.join("\n")),
+    logoImage,
+  );
 }
 
-function createPdf(stream: string, logoImage?: PdfJpeg | null) {
+function createPdf(pageStreams: string[], logoImage?: PdfJpeg | null) {
   const encoder = new TextEncoder();
-  const pageResources = logoImage
-    ? "/Resources << /Font << /F1 4 0 R /F2 5 0 R >> /XObject << /Logo 7 0 R >> >>"
-    : "/Resources << /Font << /F1 4 0 R /F2 5 0 R >> >>";
-  const streamBytes = encoder.encode(stream);
-  const objects = [
-    encoder.encode("<< /Type /Catalog /Pages 2 0 R >>"),
-    encoder.encode("<< /Type /Pages /Kids [3 0 R] /Count 1 >>"),
-    encoder.encode(
-      `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] ${pageResources} /Contents 6 0 R >>`,
-    ),
+  const objects: Uint8Array<ArrayBuffer>[] = [];
+  const addObject = (bytes: Uint8Array<ArrayBuffer>) => {
+    objects.push(bytes);
+    return objects.length;
+  };
+
+  // Objects 1 and 2 are the catalog and page tree; they are filled in once
+  // every page object has been assigned a number.
+  addObject(new Uint8Array());
+  addObject(new Uint8Array());
+  const regularFontId = addObject(
     encoder.encode("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>"),
+  );
+  const boldFontId = addObject(
     encoder.encode(
       "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>",
     ),
-    concatBytes([
-      encoder.encode(`<< /Length ${streamBytes.length} >>\nstream\n`),
-      streamBytes,
-      encoder.encode("\nendstream"),
-    ]),
-  ];
+  );
 
+  let logoId: number | null = null;
   if (logoImage) {
-    objects.push(
+    logoId = addObject(
       concatBytes([
         encoder.encode(
           `<< /Type /XObject /Subtype /Image /Width ${logoImage.width} /Height ${logoImage.height} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${logoImage.bytes.length} >>\nstream\n`,
@@ -828,6 +1100,34 @@ function createPdf(stream: string, logoImage?: PdfJpeg | null) {
       ]),
     );
   }
+
+  const fonts = `/Font << /F1 ${regularFontId} 0 R /F2 ${boldFontId} 0 R >>`;
+  const pageResources = logoId
+    ? `/Resources << ${fonts} /XObject << /Logo ${logoId} 0 R >> >>`
+    : `/Resources << ${fonts} >>`;
+
+  const pageIds = pageStreams.map((stream) => {
+    const streamBytes = encoder.encode(stream);
+    const contentId = addObject(
+      concatBytes([
+        encoder.encode(`<< /Length ${streamBytes.length} >>\nstream\n`),
+        streamBytes,
+        encoder.encode("\nendstream"),
+      ]),
+    );
+    return addObject(
+      encoder.encode(
+        `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] ${pageResources} /Contents ${contentId} 0 R >>`,
+      ),
+    );
+  });
+
+  objects[0] = encoder.encode("<< /Type /Catalog /Pages 2 0 R >>");
+  objects[1] = encoder.encode(
+    `<< /Type /Pages /Kids [${
+      pageIds.map((id) => `${id} 0 R`).join(" ")
+    }] /Count ${pageIds.length} >>`,
+  );
 
   const chunks = [encoder.encode("%PDF-1.4\n")];
   let byteOffset = chunks[0].length;
